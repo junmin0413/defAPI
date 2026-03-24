@@ -1,0 +1,4 @@
+{
+  "prompt": "### Instruction:\n아래 코드를 보안 취약점이 없도록 수정해줘. 변경된 라인에 주석으로 이유를 적어줘.\n\n### Input:\nimport java.io.*;\nimport javax.servlet.*;\nimport javax.servlet.http.*;\n\npublic class VulnerableServlet extends HttpServlet {\n    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {\n        String userInput = request.getParameter(\"input\");\n\n        String output = \"<html><body><p>User Input: \" + userInput + \"</p></body></html>\";\n\n        response.getWriter().write(output);\n    }\n}\n\n### Constraints:\n- 기능 보존\n- 라이브러리 변경 최소\n\n### Response:\n",
+  "completion": "<dependency>\n    <groupId>org.owasp.esapi</groupId>\n    <artifactId>esapi</artifactId>\n    <version>2.2.0.0</version>\n</dependency>\n\n### Explanation:\n취약유형: Cross-Site Scripting (XSS)"
+}

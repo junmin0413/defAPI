@@ -1,0 +1,4 @@
+{
+  "prompt": "### Instruction:\n아래 코드를 보안 취약점이 없도록 수정해줘. 변경된 라인에 주석으로 이유를 적어줘.\n\n### Input:\nimport java.io.IOException;\nimport java.io.PrintWriter;\n\npublic class XSSVulnerableCode {\n    public static void main(String[] args) {\n        String userInput = \"<script>alert('XSS Attack!')</script>\";\n\n        // Improper handling of user input\n        String output = \"<p>\" + userInput + \"</p>\";\n\n        try {\n            PrintWriter out = new PrintWriter(\"output.html\");\n            out.println(output);\n            out.close();\n        } catch (IOException e) {\n            System.out.println(\"Error writing output file: \" + e.getMessage());\n        }\n    }\n}\n\n### Constraints:\n- 기능 보존\n- 라이브러리 변경 최소\n\n### Response:\n",
+  "completion": "<dependency>\n    <groupId>org.owasp.encoder</groupId>\n    <artifactId>encoder</artifactId>\n    <version>1.2.2</version>\n</dependency>\n\n### Explanation:\n취약유형: Cross-Site Scripting (XSS)"
+}

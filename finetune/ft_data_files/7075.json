@@ -1,0 +1,4 @@
+{
+  "prompt": "### Instruction:\n아래 코드를 보안 취약점이 없도록 수정해줘. 변경된 라인에 주석으로 이유를 적어줘.\n\n### Input:\nCertainly! Here's a Java code snippet that demonstrates a vulnerability related to Insecure Deserialization:\n\n```java\nimport java.io.*;\n\npublic class InsecureDeserializationExample {\n\n    public static void main(String[] args) {\n        String userInput = \"rO0ABXNyACxqYXZhLnV0aWwuRGVjb2RlclNlcmlhbGl6YXRpb25TZXR0aW5ncyRTdHJpbmdDb25zdGFudFb7PHVHdNn2AgADTAARb3JnLmRlbW8uU2VyaWFsaXplZFRlc3QkU3RyaW5nAAAAAAAAAAECAAJMAARwb3NpdGlvbnQAEkxqYXZhL2xhbmcvU3RyaW5nO0wACnByb2Nlc3NpbmdDbGFzc3EAfgABTAARZGVjb2RlclByb21wdAAkTGphdmEvbGFuZy9TdHJpbmc7eHBzcgA4amF2YS51dGlsL\n\n### Constraints:\n- 기능 보존\n- 라이브러리 변경 최소\n\n### Response:\n",
+  "completion": "syntax = \"proto3\";\n\nmessage UserData {\n  string username = 1;\n  string email = 2;\n}\n\n### Explanation:\n취약유형: Insecure Deserialization"
+}

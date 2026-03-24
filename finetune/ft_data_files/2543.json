@@ -1,0 +1,4 @@
+{
+  "prompt": "### Instruction:\n아래 코드를 보안 취약점이 없도록 수정해줘. 변경된 라인에 주석으로 이유를 적어줘.\n\n### Input:\nimport java.io.*;\n\npublic class InsecureDeserializationExample {\n    public static void main(String[] args) {\n        String userInput = \"example.ser\"; // User input - serialized object file\n\n        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(userInput))) {\n            Object obj = in.readObject(); // Deserializing the object\n            System.out.println(\"Deserialized object: \" + obj);\n        } catch (IOException | ClassNotFoundException e) {\n            e.printStackTrace();\n        }\n    }\n}\n\n### Constraints:\n- 기능 보존\n- 라이브러리 변경 최소\n\n### Response:\n",
+  "completion": "<NO_FIX_AVAILABLE>\n\n### Explanation:\n취약유형: Insecure Deserialization"
+}

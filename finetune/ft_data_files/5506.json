@@ -1,0 +1,4 @@
+{
+  "prompt": "### Instruction:\n아래 코드를 보안 취약점이 없도록 수정해줘. 변경된 라인에 주석으로 이유를 적어줘.\n\n### Input:\nimport java.io.*;\n\npublic class XSSVulnerableCode {\n\n    public static void main(String[] args) {\n        // Simulating user input\n        String userInput = \"<script>alert('XSS Vulnerability!')</script>\";\n\n        // Improperly handling user input\n        String output = \"<div>\" + userInput + \"</div>\";\n\n        System.out.println(output);\n    }\n}\n\n### Constraints:\n- 기능 보존\n- 라이브러리 변경 최소\n\n### Response:\n",
+  "completion": "<dependency>\n    <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>\n    <artifactId>owasp-java-html-sanitizer</artifactId>\n    <version>20191001.1</version>\n</dependency>\n\n### Explanation:\n취약유형: Cross-Site Scripting (XSS)"
+}

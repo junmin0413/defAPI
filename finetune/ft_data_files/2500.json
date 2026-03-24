@@ -1,0 +1,4 @@
+{
+  "prompt": "### Instruction:\n아래 코드를 보안 취약점이 없도록 수정해줘. 변경된 라인에 주석으로 이유를 적어줘.\n\n### Input:\nSure, here is a simple Java code snippet that demonstrates a vulnerability related to Insecure Deserialization:\n\n```java\nimport java.io.*;\n\npublic class InsecureDeserializationExample {\n\n    public static void main(String[] args) {\n        try {\n            // User input representing serialized object\n            String userInput = \"rO0ABXNyABhDb3B5VGV4dC5qYXZhLlRleHQAAAAAAAAAAAIAAkwAA29yaWdpbmFsTmFtZXQAEkxqYXZhL2xhbmcvU3RyaW5nO0wACnByb2Nlc3NpbmdJbnZvcmNlAAlMb25nO0wAD3JlZmVyZXJCeXRlcQB+AAFMAARuYW1lcQB+AANMAAVzdGFydHQAEkxqYXZhL2xhbmcvU3RyaW5nO0wAD2hhc01hcFRhYmxlcQB+AAF4cgAtQ29weVRleHRwdAAGaW50AApTb3VyY2VGaWxl\";\n\n### Constraints:\n- 기능 보존\n- 라이브러리 변경 최소\n\n### Response:\n",
+  "completion": "<NO_FIX_AVAILABLE>\n\n### Explanation:\n취약유형: Insecure Deserialization"
+}
