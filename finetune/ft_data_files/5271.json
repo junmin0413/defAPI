@@ -1,4 +1,0 @@
-{
-  "prompt": "### Instruction:\n아래 코드를 보안 취약점이 없도록 수정해줘. 변경된 라인에 주석으로 이유를 적어줘.\n\n### Input:\nString userInput = getUserInput(); // Assume this method retrieves user input\n\nString query = \"SELECT * FROM users WHERE username = '\" + userInput + \"'\";\nStatement stmt = connection.createStatement();\nResultSet rs = stmt.executeQuery(query);\n\nwhile (rs.next()) {\n    // Process the results\n}\n\n### Constraints:\n- 기능 보존\n- 라이브러리 변경 최소\n\n### Response:\n",
-  "completion": "String userInput = getUserInput(); // Assume this method retrieves user input\n\nString query = \"SELECT * FROM users WHERE username = ?\";\nPreparedStatement stmt = connection.prepareStatement(query);\nstmt.setString(1, userInput);\n\nResultSet rs = stmt.executeQuery();\n\nwhile (rs.next()) {\n    // Process the results\n}\n\n### Explanation:\n취약유형: SQL Injection"
-}
