@@ -1,3 +1,6 @@
 # ...existing code...
 .env
+.venv
 # ...existing code...
+__pycache__/
+.pytest_cache/
