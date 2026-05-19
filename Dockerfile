@@ -10,8 +10,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt pyproject.toml ./
-COPY requirements-mvp.txt ./
-RUN pip install --no-cache-dir -r requirements-mvp.txt \
+RUN pip install --no-cache-dir -r requirements.txt \
     && curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
 COPY defapi ./defapi
