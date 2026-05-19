@@ -252,3 +252,5 @@ This project demonstrates:
 - Guardrail-first remediation design
 - LLM fine-tuning preparation for code security tasks
 - Dataset planning for SFT and DPO
+
+For a Korean Notion-style portfolio write-up, see [docs/PORTFOLIO.md](docs/PORTFOLIO.md).
