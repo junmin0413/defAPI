@@ -13,7 +13,7 @@ class PatchGenerator:
         key = finding_key(finding)
         file_path = self._resolve_file(target, finding.file_path)
         instructions = self._instructions(finding)
-        diff = self._dependency_diff(file_path, finding)
+        diff = self._dependency_diff(target, file_path, finding)
         return PatchSuggestion(
             finding_key=key,
             file_path=str(file_path) if file_path else finding.file_path,
@@ -37,7 +37,7 @@ class PatchGenerator:
             return resolved
         return None
 
-    def _dependency_diff(self, file_path: Path | None, finding: Finding) -> str | None:
+    def _dependency_diff(self, target: Path, file_path: Path | None, finding: Finding) -> str | None:
         if finding.scanner != ScannerName.trivy or file_path is None:
             return None
         installed = finding.raw.get("InstalledVersion")
@@ -45,13 +45,28 @@ class PatchGenerator:
         pkg = finding.raw.get("PkgName")
         if not installed or not fixed or not pkg:
             return None
+        old_line = f"{pkg}=={installed}"
+        new_line = f"{pkg}=={fixed}"
+        try:
+            lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            line_number = lines.index(old_line) + 1
+        except ValueError:
+            return None
+        diff_path = self._diff_path(target, file_path)
         return (
-            f"--- a/{file_path.name}\n"
-            f"+++ b/{file_path.name}\n"
-            f"@@\n"
-            f"-{pkg}=={installed}\n"
-            f"+{pkg}=={fixed}\n"
+            f"--- a/{diff_path}\n"
+            f"+++ b/{diff_path}\n"
+            f"@@ -{line_number},1 +{line_number},1 @@\n"
+            f"-{old_line}\n"
+            f"+{new_line}\n"
         )
+
+    def _diff_path(self, target: Path, file_path: Path) -> str:
+        scan_root = target.resolve() if target.is_dir() else target.resolve().parent
+        try:
+            return file_path.resolve().relative_to(scan_root).as_posix()
+        except ValueError:
+            return file_path.name
 
     def _instructions(self, finding: Finding) -> str:
         if finding.scanner == ScannerName.semgrep:
@@ -72,4 +87,3 @@ def finding_key(finding: Finding) -> str:
         str(finding.start_line or 0),
     ]
     return "::".join(parts)
-

@@ -97,6 +97,7 @@ class Report(BaseModel):
     scanner_results: list[ScannerResult] = Field(default_factory=list)
     patches: list[PatchSuggestion] = Field(default_factory=list)
     validation: list[ValidationResult] = Field(default_factory=list)
+    verification_scanner_results: list[ScannerResult] = Field(default_factory=list)
     summary: dict[str, int] = Field(default_factory=dict)
 
 

@@ -46,10 +46,13 @@ class SemgrepMCP(CommandMCP):
         normalized = str(value or "info").lower()
         if normalized == "error":
             return FindingSeverity.high
+        
         if normalized == "warning":
             return FindingSeverity.medium
+        
         if normalized in FindingSeverity.__members__:
             return FindingSeverity(normalized)
+        
         return FindingSeverity.info
 
     def _list(self, value: Any) -> list[str]:

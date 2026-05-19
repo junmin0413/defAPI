@@ -9,9 +9,8 @@ from langgraph.graph import END, StateGraph
 from defapi.mcp import SemgrepMCP, TrivyMCP, ZapMCP
 from defapi.models import Finding, Report, ScanRecord, ScannerResult
 from defapi.models import PatchSuggestion, ValidationResult
-from defapi.patches import PatchGenerator
+from defapi.remediation import RemediationVerifier, create_default_remediator
 from defapi.reports import ReportGenerator
-from defapi.validation import ValidationLoop
 
 
 class ScanState(TypedDict, total=False):
@@ -19,8 +18,10 @@ class ScanState(TypedDict, total=False):
     target: Path
     scanner_results: list[ScannerResult]
     findings: list[Finding]
+    initial_report: Report
     patches: list[PatchSuggestion]
     validation: list[ValidationResult]
+    verification_scanner_results: list[ScannerResult]
     report: Report
 
 
@@ -29,9 +30,9 @@ class ScanWorkflow:
         self.semgrep = SemgrepMCP()
         self.trivy = TrivyMCP()
         self.zap = ZapMCP()
-        self.patch_generator = PatchGenerator()
-        self.validation_loop = ValidationLoop()
         self.report_generator = ReportGenerator()
+        self.remediator = create_default_remediator()
+        self.verifier = RemediationVerifier(semgrep=self.semgrep, trivy=self.trivy, zap=self.zap)
         self.graph = self._build_graph()
 
     async def run(self, record: ScanRecord) -> Report:
@@ -41,14 +42,16 @@ class ScanWorkflow:
     def _build_graph(self):
         graph = StateGraph(ScanState)
         graph.add_node("scan", self._scan)
-        graph.add_node("patch", self._patch)
-        graph.add_node("validate", self._validate)
-        graph.add_node("report", self._report)
+        graph.add_node("initial_report", self._initial_report)
+        graph.add_node("remediate", self._remediate)
+        graph.add_node("verify", self._verify)
+        graph.add_node("final_report", self._final_report)
         graph.set_entry_point("scan")
-        graph.add_edge("scan", "patch")
-        graph.add_edge("patch", "validate")
-        graph.add_edge("validate", "report")
-        graph.add_edge("report", END)
+        graph.add_edge("scan", "initial_report")
+        graph.add_edge("initial_report", "remediate")
+        graph.add_edge("remediate", "verify")
+        graph.add_edge("verify", "final_report")
+        graph.add_edge("final_report", END)
         return graph.compile()
 
     async def _scan(self, state: ScanState) -> ScanState:
@@ -61,19 +64,38 @@ class ScanWorkflow:
         findings = [finding for result in scanner_results for finding in result.findings]
         return {**state, "scanner_results": scanner_results, "findings": findings}
 
-    async def _patch(self, state: ScanState) -> ScanState:
-        patches = self.patch_generator.generate(state["target"], state.get("findings", []))
+    async def _initial_report(self, state: ScanState) -> ScanState:
+        initial_report = self.report_generator.build(
+            state["record"],
+            state.get("scanner_results", []),
+            [],
+            [],
+        )
+        return {**state, "initial_report": initial_report}
+
+    async def _remediate(self, state: ScanState) -> ScanState:
+        patches = await asyncio.to_thread(
+            self.remediator.generate,
+            state["target"],
+            state["initial_report"],
+            state.get("findings", []),
+        )
         return {**state, "patches": patches}
 
-    async def _validate(self, state: ScanState) -> ScanState:
-        validation = self.validation_loop.validate(state["target"], state.get("patches", []))
-        return {**state, "validation": validation}
+    async def _verify(self, state: ScanState) -> ScanState:
+        validation, verification_scanner_results = await self.verifier.validate_and_rescan(
+            state["target"],
+            state["record"],
+            state.get("patches", []),
+        )
+        return {**state, "validation": validation, "verification_scanner_results": verification_scanner_results}
 
-    async def _report(self, state: ScanState) -> ScanState:
+    async def _final_report(self, state: ScanState) -> ScanState:
         report = self.report_generator.build(
             state["record"],
             state.get("scanner_results", []),
             state.get("patches", []),
             state.get("validation", []),
+            state.get("verification_scanner_results", []),
         )
         return {**state, "report": report}

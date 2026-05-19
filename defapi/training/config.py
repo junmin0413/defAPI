@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -35,6 +35,7 @@ class FineTuneConfig:
     per_device_eval_batch_size: int = 1
     gradient_accumulation_steps: int = 2
     gradient_checkpointing: bool = True
+    gradient_checkpointing_kwargs: dict[str, bool] = field(default_factory=lambda: {"use_reentrant": False})
     max_grad_norm: float = 0.6
     learning_rate: float = 2e-6
     weight_decay: float = 0.001
@@ -44,7 +45,13 @@ class FineTuneConfig:
     warmup_ratio: float = 0.03
     group_by_length: bool = True
     save_steps: int = 0
+    eval_steps: int | None = None
+    save_total_limit: int | None = 2
     logging_steps: int = 500
+    dataloader_num_workers: int = 0
+    dataset_num_proc: int | None = None
+    fp16: bool = False
+    bf16: bool = False
     packing: bool = False
     report_to: str = "wandb"
     seed: int = 42
