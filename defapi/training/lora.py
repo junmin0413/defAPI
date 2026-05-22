@@ -1,41 +1,39 @@
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING, Any
 
 from datasets import load_dataset
 from transformers import TrainingArguments
 
 from defapi.training.common import (
-    configure_wandb as configure_wandb_for_config,
+    configure_wandb,
     create_adalora_config,
     create_model,
     create_tokenizer,
     validate_dataset_columns,
-    validate_sft_inputs,
+    validate_runtime_config,
 )
 from defapi.training.config import FineTuneConfig
 
 if TYPE_CHECKING:
     from trl import SFTTrainer
 
-
-def configure_wandb(project: str = "defAPI", log_model: str = "true", watch: str = "false") -> None:
-    os.environ.setdefault("WANDB_PROJECT", project)
-    os.environ.setdefault("WANDB_LOG_MODEL", log_model)
-    os.environ.setdefault("WANDB_WATCH", watch)
+DATASET_NAME = "hitoshura25/crossvul"
 
 
-def load_lora_datasets():
-    return load_dataset("hitoshura25/crossvul")
+def load_lora_dataset():
+    return load_dataset(DATASET_NAME)
 
 
 def tokenize_dataset(dataset: Any, tokenizer: Any, config: FineTuneConfig):
     validate_dataset_columns(dataset)
 
     def preprocess_fn(example):
-        text = format_sft_text(example["prompt"], example["completion"])
-        return tokenizer(text, truncation=True, max_length=config.max_seq_length)
+        return tokenizer(
+            format_sft_text(example["prompt"], example["completion"]),
+            truncation=True,
+            max_length=config.max_seq_length,
+        )
 
     return dataset.map(
         preprocess_fn,
@@ -45,7 +43,11 @@ def tokenize_dataset(dataset: Any, tokenizer: Any, config: FineTuneConfig):
 
 
 def format_sft_text(prompt: str, completion: str) -> str:
-    return f"### Fix the vulnerability in this code.\n\n ### Vulnerability Code:\n{prompt.strip()}\n\n### Clean Code:\n{completion.strip()}"
+    return (
+        "### Fix the vulnerability in this code.\n\n"
+        f"### Vulnerability Code:\n{prompt.strip()}\n\n"
+        f"### Clean Code:\n{completion.strip()}"
+    )
 
 
 def create_training_args(config: FineTuneConfig) -> TrainingArguments:
@@ -79,15 +81,21 @@ def create_training_args(config: FineTuneConfig) -> TrainingArguments:
 def create_lora_trainer(config: FineTuneConfig, device_map: str | dict = "auto") -> "SFTTrainer":
     from trl import SFTTrainer
 
-    configure_wandb_for_config(config, project="defAPI")
-    dataset = load_lora_datasets()
+    validate_runtime_config(config)
+    configure_wandb(config, project="defAPI")
+
+    raw_dataset = load_lora_dataset()
     tokenizer = create_tokenizer(config)
-    tokenized_dataset = tokenize_dataset(dataset, tokenizer, config)
+    dataset = tokenize_dataset(raw_dataset, tokenizer, config)
+
+    model = create_model(config, device_map=device_map)
+    train_dataset = dataset["train"].shuffle(seed=config.seed)
+    eval_dataset = dataset["test"].shuffle(seed=config.seed)
 
     return SFTTrainer(
-        model=create_model(config, device_map=device_map),
-        train_dataset=tokenized_dataset["train"].shuffle(seed=config.seed),
-        eval_dataset=tokenized_dataset["test"].shuffle(seed=config.seed),
+        model=model,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         peft_config=create_adalora_config(config),
         args=create_training_args(config),
         packing=config.packing,

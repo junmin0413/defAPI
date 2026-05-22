@@ -9,11 +9,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 @dataclass(frozen=True)
 class FineTuneConfig:
-    base_model: str = "deepseek-ai/deepseek-coder-1.3b-instruct"
-    train_path: Path = PROJECT_ROOT / "dataset" / "ft_data.jsonl"
-    test_path: Path = PROJECT_ROOT / "dataset" / "test_data.jsonl"
+    base_model: str = "qwen3.5-vulnerability"
     output_dir: Path = PROJECT_ROOT / "results"
-    new_model: Path = PROJECT_ROOT / "deepseek-coder-1.3b-instruct-adalora-gbsw"
+    new_model: Path = PROJECT_ROOT / "qwen3.5-vulnerability-adalora"
     max_seq_length: int = 1024
     adalora_target_r: int = 8
     adalora_init_r: int = 32

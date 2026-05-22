@@ -17,6 +17,40 @@ defAPI는 취약한 로컬 코드를 보안 스캐너로 분석하고, 보고서
   -> 최종 보고서 반환
 ```
 
+## 워크플로우 개요
+
+### 현재 MVP 워크플로우
+
+```mermaid
+flowchart TD
+    Request[Scan request] --> Scanners[Semgrep Trivy and optional ZAP scan]
+    Scanners --> Findings[Collect normalized findings]
+    Findings --> InitialReport[Build initial report]
+    InitialReport --> Remediation[OpenAI or rule based remediation]
+    Remediation --> Validation[Validate patch path diff and git apply check]
+    Validation --> Sandbox{Apply patches in sandbox}
+    Sandbox -- Yes --> Rescan[Apply valid patches and rescan]
+    Sandbox -- No --> FinalReport[Build final report]
+    Rescan --> FinalReport
+```
+
+### 고도화 목표 워크플로우
+
+```mermaid
+flowchart TD
+    Job[Create async scan job] --> Target[Resolve target and policy]
+    Target --> Registry[Run scanner registry]
+    Registry --> Findings[Normalize group and prioritize findings]
+    Findings --> Context[Build safe repository context]
+    Context --> Router[Route remediation strategy]
+    Router --> Repair[Validate patch and repair failures]
+    Repair --> Verification[Sandbox tests and rescan]
+    Verification --> Report[Build reports and artifacts]
+    Report --> Dataset[Export evaluation and training data]
+```
+
+상세 분기와 검증 루프는 [워크플로우 문서](docs/WORKFLOW.md)에 정리되어 있습니다.
+
 원본 프로젝트에는 패치를 직접 적용하지 않습니다. 패치 적용 검증은 임시 sandbox에서만 수행합니다.
 
 ## 현재 구현 상태
