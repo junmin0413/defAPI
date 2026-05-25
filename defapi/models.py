@@ -39,7 +39,6 @@ class FindingSeverity(str, Enum):
 class ScanRequest(BaseModel):
     target: str = Field(..., min_length=1, description="Local directory or file to scan")
     include_zap: bool = Field(default=False, description="ZAP is accepted but skipped in MVP 1")
-    apply_patches: bool = Field(default=False, description="Generate patches only unless explicitly enabled later")
 
     @field_validator("target")
     @classmethod
@@ -73,21 +72,6 @@ class ScannerResult(BaseModel):
     error: str | None = None
 
 
-class PatchSuggestion(BaseModel):
-    finding_key: str
-    file_path: str | None = None
-    strategy: str
-    unified_diff: str | None = None
-    instructions: str
-    applicable: bool
-
-
-class ValidationResult(BaseModel):
-    finding_key: str
-    valid: bool
-    reason: str
-
-
 class Report(BaseModel):
     scan_id: str
     target: str
@@ -95,9 +79,6 @@ class Report(BaseModel):
     created_at: datetime
     completed_at: datetime | None = None
     scanner_results: list[ScannerResult] = Field(default_factory=list)
-    patches: list[PatchSuggestion] = Field(default_factory=list)
-    validation: list[ValidationResult] = Field(default_factory=list)
-    verification_scanner_results: list[ScannerResult] = Field(default_factory=list)
     summary: dict[str, int] = Field(default_factory=dict)
 
 
@@ -105,7 +86,6 @@ class ScanRecord(BaseModel):
     scan_id: str = Field(default_factory=lambda: uuid4().hex)
     target: str
     include_zap: bool = False
-    apply_patches: bool = False
     status: ScanStatus = ScanStatus.created
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None

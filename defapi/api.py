@@ -23,7 +23,6 @@ async def create_scan(request: ScanRequest) -> ScanResponse:
     record = ScanRecord(
         target=request.target,
         include_zap=request.include_zap,
-        apply_patches=request.apply_patches,
         status=ScanStatus.running,
     )
     records[record.scan_id] = record
