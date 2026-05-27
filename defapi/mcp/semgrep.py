@@ -16,7 +16,9 @@ class SemgrepMCP(CommandMCP):
         return {0, 1}
 
     def command(self, target: Path) -> list[str]:
-        return ["semgrep", "--config", "auto", "--json", "--quiet", str(target)]
+        rules = Path(__file__).resolve().parents[2] / "eval/semgrep_rules.yml"
+        config = str(rules) if rules.exists() else "auto"
+        return ["semgrep", "--config", config, "--json", "--quiet", "--metrics", "off", str(target)]
 
     def parse_findings(self, payload: dict[str, Any]) -> list[Finding]:
         findings: list[Finding] = []
@@ -61,4 +63,3 @@ class SemgrepMCP(CommandMCP):
         if isinstance(value, list):
             return [str(item) for item in value]
         return [str(value)]
-
