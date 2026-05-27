@@ -4,3 +4,5 @@
 # ...existing code...
 __pycache__/
 .pytest_cache/
+
+.phoenix/

@@ -6,7 +6,7 @@ defAPI는 로컬 코드 또는 디렉터리를 보안 스캐너로 분석하고 
 
 ```text
 사용자 코드
-  -> MCP 스캐너 분석(Semgrep, Trivy, ZAP placeholder)
+  -> MCP 스캐너 분석(Semgrep, Trivy)
   -> Finding 정규화
   -> 보안 보고서 생성
   -> 결과 반환
@@ -16,7 +16,7 @@ defAPI는 로컬 코드 또는 디렉터리를 보안 스캐너로 분석하고 
 
 ```mermaid
 flowchart TD
-    Request[Scan request] --> Scanners[Semgrep Trivy and optional ZAP scan]
+    Request[Scan request] --> Scanners[Semgrep and Trivy scan]
     Scanners --> Findings[Collect normalized findings]
     Findings --> Report[Build report]
 ```
@@ -29,14 +29,13 @@ flowchart TD
 
 - FastAPI `/health`, `/scan`, `/report/{scan_id}` API
 - LangGraph 기반 scan -> report workflow
-- Semgrep, Trivy, ZAP MCP wrapper
+- Semgrep, Trivy MCP wrapper
 - Scanner output을 공통 `Finding` 모델로 정규화
 - 스캐너 실행 결과와 severity count 기반 summary 생성
 - LoRA/SFT, DPO 학습 모듈 skeleton
 
 아직 제한적인 부분:
 
-- ZAP은 현재 placeholder이며 기본적으로 skipped 처리됩니다.
 - 테스트 러너 연동은 아직 없습니다.
 - fine-tuned/DPO 모델 inference는 아직 API workflow에 연결되어 있지 않습니다.
 
@@ -52,7 +51,6 @@ defapi/
     base.py               # 공통 command scanner wrapper
     semgrep.py            # Semgrep JSON parser
     trivy.py              # Trivy JSON parser
-    zap.py                # ZAP placeholder
   training/
     config.py             # fine-tuning 설정
     lora.py               # AdaLoRA/SFT trainer factory
@@ -103,8 +101,6 @@ semgrep --version
 trivy --version
 ```
 
-ZAP은 현재 MVP에서 placeholder입니다. `include_zap=true`로 요청하면 skipped 결과가 포함될 수 있습니다.
-
 ## 실행
 
 API 서버 실행:
@@ -131,8 +127,7 @@ curl http://127.0.0.1:8000/health
 curl -X POST http://127.0.0.1:8000/scan \
   -H "Content-Type: application/json" \
   -d '{
-    "target": "/path/to/local/project",
-    "include_zap": false
+    "target": "/path/to/local/project"
   }'
 ```
 
@@ -220,6 +215,105 @@ python scripts/train.py \
   --no-4bit
 ```
 
+## Phoenix LLM judge eval
+
+`eval/eval.py`는 `eval/cases/scan_cases.jsonl`의 fixture를 Phoenix dataset으로 업로드한 뒤 experiment를 실행합니다. 각 case는 defAPI `ScanWorkflow`를 직접 호출하고, 결과를 Phoenix evaluator 3개로 평가합니다.
+
+Evaluator:
+
+- `finding_count_bounds`: finding 개수가 case의 `min_findings_total`, `max_findings_total` 범위 안에 있는지 확인합니다.
+- `expected_scanners_completed`: case가 요구한 scanner가 정상 완료됐는지 확인합니다.
+- `llm_report_quality`: OpenAI model을 LLM judge로 사용해 finding이 fixture 설명과 실제로 관련 있는지 판정합니다.
+
+Scanner 역할:
+
+- `semgrep`: Python source code의 command injection, SQL injection, hardcoded secret 같은 코드 패턴을 탐지합니다.
+- `trivy`: `requirements.txt` 같은 dependency manifest에서 CVE가 있는 오래된 패키지를 탐지합니다.
+
+현재 eval case:
+
+| case | 기대 |
+| --- | --- |
+| `clean_python_project` | intentional vulnerability가 없으므로 finding 0개 |
+| `semgrep_hardcoded_secret` | 최소 finding 1개 |
+| `semgrep_command_injection` | 최소 finding 1개 |
+| `semgrep_sql_injection` | 최소 finding 1개 |
+| `trivy_vulnerable_requirements` | 최소 finding 1개 |
+
+Phoenix Cloud 설정:
+
+```bash
+export PHOENIX_BASE_URL="https://app.phoenix.arize.com/s/wkdwnsals0413"
+export PHOENIX_API_KEY="your-phoenix-api-key"
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+패키지 설치:
+
+```bash
+python -m pip uninstall -y phoenix
+python -m pip install arize-phoenix-client arize-phoenix-evals openai
+```
+
+주의: PyPI의 `phoenix` 패키지는 Arize Phoenix가 아닙니다. 설치되어 있으면 `SyntaxError: multiple exception types must be parenthesized`가 날 수 있으므로 제거해야 합니다.
+
+실행:
+
+```bash
+python eval/eval.py
+```
+
+LLM 호출 없이 연결과 스캔 러너만 먼저 확인:
+
+```bash
+python eval/eval.py --no-llm-judge --dry-run 1
+```
+
+기본 judge model은 `gpt-4o-mini`입니다. 바꾸려면 다음처럼 지정합니다.
+
+```bash
+python eval/eval.py --judge-model gpt-4o
+```
+
+실행이 성공하면 Phoenix가 dataset/experiment URL을 출력합니다.
+
+예시:
+
+```text
+View dataset experiments: https://app.phoenix.arize.com/s/wkdwnsals0413/datasets/.../experiments
+View this experiment: https://app.phoenix.arize.com/s/wkdwnsals0413/datasets/.../compare?experimentId=...
+Experiment completed: 5 task runs, 3 evaluator runs, 15 evaluations
+```
+
+최근 실행 결과 요약:
+
+| case | finding count | deterministic result | LLM judge |
+| --- | ---: | --- | --- |
+| `trivy_vulnerable_requirements` | 53 | pass | PASS |
+| `semgrep_sql_injection` | 4 | pass | PASS |
+| `semgrep_command_injection` | 3 | pass | PASS |
+| `semgrep_hardcoded_secret` | 2 | pass | PASS |
+| `clean_python_project` | 2 | fail | FAIL |
+
+`clean_python_project` 실패 원인:
+
+`clean_python_project`는 source code에 intentional vulnerability가 없는 false-positive baseline입니다. 하지만 현재 workflow는 case별 scanner 선택 없이 Semgrep과 Trivy를 모두 실행합니다. Semgrep은 코드 취약점을 찾지 않았지만, Trivy가 fixture의 `requirements.txt`에서 `requests` 관련 dependency CVE 2개를 찾았습니다.
+
+즉, LLM judge가 clean project를 못 찾은 이유는 judge 문제가 아니라 eval 기준과 scanner 범위가 어긋났기 때문입니다. `clean_python_project`의 기대값은 "코드 취약점 0개"인데, 실제 report에는 "dependency 취약점 2개"가 포함됐습니다.
+
+실제 finding:
+
+- `CVE-2024-47081`: Requests URL parsing issue
+- `CVE-2026-25645`: Requests predictable temporary file creation issue
+
+이 때문에 `finding_count_bounds`는 `findings_total=2, expected=0..0`으로 fail을 냈고, LLM judge도 "clean case인데 finding이 있으므로 FAIL"로 판정했습니다.
+
+해결 방향:
+
+- `clean_python_project/requirements.txt`의 dependency를 Trivy가 CVE로 잡지 않는 최신 버전으로 올립니다.
+- 또는 clean baseline에서는 Trivy를 제외하고 Semgrep만 실행하도록 eval case에 scanner 선택 옵션을 추가합니다.
+- 또는 평가 기준을 `source_findings_total`과 `dependency_findings_total`로 분리해서 clean source code와 vulnerable dependency를 따로 봅니다.
+
 ## 검증 명령
 
 문법/import 확인:
@@ -250,8 +344,7 @@ python -m pytest -q
 
 ```json
 {
-  "target": "/path/to/local/project",
-  "include_zap": false
+  "target": "/path/to/local/project"
 }
 ```
 

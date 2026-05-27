@@ -16,3 +16,6 @@ fastapi>=0.111.0
 uvicorn[standard]>=0.30.0
 pydantic>=2.7.0
 semgrep>=1.70.0
+openai>=1.30.0
+arize-phoenix-client>=1.0.0
+arize-phoenix-evals>=3.0.0
