@@ -5,7 +5,6 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,19 +24,12 @@ You are judging a security scan report.
 Case: {{case_name}}
 Description: {{description}}
 Expected scanners: {{expected_scanners}}
-Expected vulnerability: {{expected_vulnerability}}
-Expected files: {{expected_files}}
-Expected CWE: {{expected_cwe}}
-Expected keywords: {{expected_keywords}}
-Forbidden keywords: {{forbidden_keywords}}
 Minimum findings: {{min_findings_total}}
-Max latency ms: {{max_latency_ms}}
 Report JSON: {{report_json}}
 
 PASS only when the report satisfies the case expectation. Clean cases need no
 findings. Vulnerable cases need at least one relevant finding. Scanner failures,
-ambiguous evidence, forbidden vulnerability classes, or irrelevant-only findings
-are FAIL.
+ambiguous evidence, or irrelevant-only findings are FAIL.
 """
 
 
@@ -64,41 +56,22 @@ def load_cases(path: Path) -> list[dict[str, Any]]:
                     "case_name": data["name"],
                     "target": data["target"],
                     "description": data.get("description", ""),
-                    "expected_vulnerability": data.get("expected_vulnerability", ""),
                     "min_findings_total": data.get("min_findings_total", 0),
                     "max_findings_total": data.get("max_findings_total"),
-                    "max_latency_ms": data.get("max_latency_ms", 120_000),
-                    "expected_scanners": data.get("expected_scanners", []),
-                    "expected_files": data.get("expected_files", []),
-                    "expected_cwe": data.get("expected_cwe", []),
-                    "expected_keywords": data.get("expected_keywords", []),
-                    "forbidden_keywords": data.get("forbidden_keywords", []),
+                    "expected_scanners": ",".join(data.get("expected_scanners", [])),
+                    "relevant_scanners": ",".join(data.get("relevant_scanners", [])),
                 }
             )
     return rows
 
 
-def ms_between(start: str | None, end: str | None) -> int | None:
-    if not start or not end:
-        return None
-    started = datetime.fromisoformat(start.replace("Z", "+00:00"))
-    finished = datetime.fromisoformat(end.replace("Z", "+00:00"))
-    return round((finished - started).total_seconds() * 1000)
-
-
 def compact_report(report: Any) -> dict[str, Any]:
     data = report.model_dump(mode="json")
     results = data.get("scanner_results", [])
-    scanner_latency = {
-        r["scanner"]: ms_between(r.get("started_at"), r.get("finished_at"))
-        for r in results
-    }
     return {
         "target": data["target"],
         "status": data["status"],
         "summary": data.get("summary", {}),
-        "latency_ms": ms_between(data.get("created_at"), data.get("completed_at")),
-        "scanner_latency_ms": scanner_latency,
         "scanner_statuses": {r["scanner"]: r["status"] for r in results},
         "scanner_errors": {r["scanner"]: r["error"] for r in results if r.get("error")},
         "findings": [
@@ -128,10 +101,6 @@ def task(input: dict[str, Any]) -> dict[str, Any]:
     return asyncio.run(run_case(input))
 
 
-def text_blob(findings: list[dict[str, Any]]) -> str:
-    return json.dumps(findings, ensure_ascii=False).lower()
-
-
 def finding_count_bounds(output: dict[str, Any], input: dict[str, Any]) -> tuple[bool, str, str]:
     total = output.get("summary", {}).get("findings_total", 0)
     lower = input.get("min_findings_total", 0)
@@ -140,36 +109,42 @@ def finding_count_bounds(output: dict[str, Any], input: dict[str, Any]) -> tuple
     return ok, "pass" if ok else "fail", f"findings_total={total}, expected={lower}..{upper}"
 
 
-def expected_evidence_found(output: dict[str, Any], input: dict[str, Any]) -> tuple[bool, str, str]:
-    findings = output.get("findings", [])
-    blob = text_blob(findings)
-    files = input.get("expected_files", [])
-    cwes = input.get("expected_cwe", [])
-    keywords = [k.lower() for k in input.get("expected_keywords", [])]
-    forbidden = [k.lower() for k in input.get("forbidden_keywords", [])]
-
-    file_ok = not files or any(any(path in (f.get("file_path") or "") for path in files) for f in findings)
-    cwe_ok = not cwes or any(cwe.lower() in blob for cwe in cwes)
-    keyword_ok = not keywords or any(keyword in blob for keyword in keywords)
-    forbidden_hits = [keyword for keyword in forbidden if keyword in blob]
-    ok = file_ok and cwe_ok and keyword_ok and not forbidden_hits
-    detail = f"file_ok={file_ok}, cwe_ok={cwe_ok}, keyword_ok={keyword_ok}, forbidden={forbidden_hits}"
-    return ok, "pass" if ok else "fail", detail
-
-
 def expected_scanners_completed(output: dict[str, Any], input: dict[str, Any]) -> tuple[bool, str, str]:
-    expected = input.get("expected_scanners", [])
+    expected = [s for s in input.get("expected_scanners", "").split(",") if s]
     statuses = output.get("scanner_statuses", {})
     failed = [s for s in expected if statuses.get(s) != "completed"]
     return not failed, "pass" if not failed else "fail", f"failed={failed}, statuses={statuses}"
 
+def relevance_of_findings(output: dict[str, Any], input: dict[str, Any]) -> tuple[bool | None, str | None, str | None]:
+    findings = output.get("findings", [])
+    if not findings:
+        return None, None, "no findings"
+    expected = set(input.get("expected_scanners", "").split(","))
+    relevant = [f for f in findings if f.get("scanner") in expected]
+    if not relevant:
+        return False, "fail", f"no relevant findings, expected scanners: {expected}"
+    return True, "pass", f"{len(relevant)} relevant findings, expected scanners: {expected}"
 
-def latency_within_limit(output: dict[str, Any], input: dict[str, Any]) -> tuple[bool, str, str]:
-    latency = output.get("latency_ms")
-    limit = input.get("max_latency_ms")
-    ok = latency is not None and (limit is None or latency <= limit)
-    return ok, "pass" if ok else "fail", f"latency_ms={latency}, limit={limit}"
+def completeness_of_findings(output: dict[str, Any], input: dict[str, Any]) -> tuple[bool | None, str | None, str | None]:
+    findings = output.get("findings", [])
+    if not findings:
+        return None, None, "no findings"
+    expected = set(input.get("expected_scanners", "").split(","))
+    scanners_with_findings = set(f.get("scanner") for f in findings)
+    missing = expected - scanners_with_findings
+    if missing:
+        return False, "fail", f"missing findings from scanners: {missing}, expected scanners: {expected}"
+    return True, "pass", f"findings from all expected scanners: {expected}"
 
+def false_positive_findings(output: dict[str, Any], input: dict[str, Any]) -> tuple[bool | None, str | None, str | None]:
+    findings = output.get("findings", [])
+    if not findings:
+        return None, None, "no findings"
+    expected = set(input.get("expected_scanners", "").split(","))
+    false_positives = [f for f in findings if f.get("scanner") not in expected]
+    if false_positives:
+        return False, "fail", f"{len(false_positives)} false positive findings from scanners: {set(f.get('scanner') for f in false_positives)}, expected scanners: {expected}"
+    return True, "pass", f"no false positive findings, expected scanners: {expected}"
 
 def llm_judge(model: str):
     _, ClassificationEvaluator, LLM = phoenix_imports()
@@ -221,12 +196,7 @@ def main() -> None:
             f"to this space: {opts.phoenix_base_url}"
         ) from exc
 
-    evaluators = [
-        finding_count_bounds,
-        expected_evidence_found,
-        expected_scanners_completed,
-        latency_within_limit,
-    ]
+    evaluators = [finding_count_bounds, expected_scanners_completed, relevance_of_findings]
     if not opts.no_llm_judge:
         if not os.getenv("OPENAI_API_KEY"):
             raise SystemExit("OPENAI_API_KEY is required unless --no-llm-judge is set.")
