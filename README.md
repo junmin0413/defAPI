@@ -52,13 +52,12 @@ defapi/
     semgrep.py            # Semgrep JSON parser
     trivy.py              # Trivy JSON parser
   training/
-    config.py             # fine-tuning 설정
-    lora.py               # AdaLoRA/SFT trainer factory
-    dpo.py                # DPO trainer factory
-    common.py             # training 공통 유틸
-
-scripts/
-  train.py                # 학습 entrypoint
+    config.py             # Qwen QLoRA 학습 설정
+    data.py               # JSONL dataset 로딩/검증/split
+    prompts.py            # Qwen chat template prompt 구성
+    modeling.py           # 4bit model/tokenizer/LoRA 구성
+    trainer.py            # SFTTrainer/W&B/checkpoint orchestration
+    qwen_qlora.py         # Qwen2.5-Coder QLoRA 학습 entrypoint
 ```
 
 ## 설치
@@ -174,50 +173,66 @@ curl http://127.0.0.1:8000/health
 
 ## 학습 실행
 
-SFT/LoRA 학습 데이터는 JSONL 형식이며 각 줄에 `prompt`, `completion` 필드가 있어야 합니다.
+Qwen/Qwen2.5-Coder-14B-Instruct QLoRA fine-tuning은 `defapi.training` 패키지 안에 모듈별로 나뉘어 있습니다.
+
+```bash
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml
+```
+
+기본 설정은 RunPod 48GB GPU, QLoRA 4bit NF4, W&B logging, `/workspace/checkpoints` 저장 경로를 기준으로 합니다.
+
+학습 데이터는 JSONL 형식이며 각 줄에 `instruction`, `input`, `output` 필드가 있어야 합니다.
 
 예시:
 
 ```jsonl
-{"prompt":"Analyze this vulnerable code:\n...", "completion":"Finding summary..."}
-```
-
-기본 실행:
-
-```bash
-python scripts/train.py \
-  --train-path dataset/ft_data.jsonl \
-  --test-path dataset/test_data.jsonl \
-  --output-dir results \
-  --new-model deepseek-coder-1.3b-instruct-adalora-gbsw \
-  --batch-size 1 \
-  --grad-accum 2 \
-  --max-seq-length 1024 \
-  --epochs 1
+{"instruction":"다음 코드의 보안 취약점을 분석하고 안전한 코드로 수정하라.","input":"import os\nfilename = input()\nos.system('cat ' + filename)","output":"취약점: 사용자 입력이 shell command에 직접 연결되어 command injection이 발생할 수 있다.\n\n수정 코드:\n```python\nfrom pathlib import Path\n...\n```\n\n수정 이유: shell 명령 실행을 제거했다.\n\n추가 주의사항: 파일 접근 권한과 예외 처리 정책도 함께 적용해야 한다."}
 ```
 
 W&B 없이 실행:
 
 ```bash
-python scripts/train.py \
-  --train-path dataset/ft_data.jsonl \
-  --test-path dataset/test_data.jsonl \
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
   --report-to none
 ```
 
-4bit을 끄고 실행:
+중단된 checkpoint부터 재시작:
 
 ```bash
-python scripts/train.py \
-  --train-path dataset/ft_data.jsonl \
-  --test-path dataset/test_data.jsonl \
-  --report-to none \
-  --no-4bit
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
+  --resume-from-checkpoint /workspace/checkpoints/defapi-qwen2.5-coder-14b-qlora/checkpoint-100
 ```
 
 ## Phoenix LLM judge eval
 
 `eval/eval.py`는 `eval/cases/scan_cases.jsonl`의 fixture를 Phoenix dataset으로 업로드한 뒤 experiment를 실행합니다. 각 case는 defAPI `ScanWorkflow`를 직접 호출하고, 결과를 Phoenix evaluator 3개로 평가합니다.
+
+## 로컬 Baseline / 개선 실험 / 실패 분석
+
+Phoenix 없이 로컬에서 baseline과 개선 실험을 비교하려면 `eval/local_eval.py`를 사용합니다.
+
+baseline 실행:
+
+```bash
+python eval/local_eval.py --run-label baseline
+```
+
+개선 실험 실행(기존 baseline과 비교):
+
+```bash
+python eval/local_eval.py \
+  --run-label improved_v1 \
+  --compare-to eval/results/baseline.json
+```
+
+출력물:
+
+- `eval/results/{run_label}.json`: 케이스별 pass/fail, 이유, 스캔 요약
+- `eval/results/{run_label}_failures.md`: 실패 케이스 원인 리포트
+- `eval/results/{run_label}_vs_{baseline_label}.json`: baseline 대비 개선/회귀 케이스
 
 Evaluator:
 
@@ -319,7 +334,7 @@ Experiment completed: 5 task runs, 3 evaluator runs, 15 evaluations
 문법/import 확인:
 
 ```bash
-python -m compileall -q defapi scripts
+python -m compileall -q defapi
 ```
 
 테스트 파일이 있을 때:
