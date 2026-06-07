@@ -184,13 +184,16 @@ python -m defapi.training.qwen_qlora \
 
 `hitoshura25/crossvul`은 `cwe_id`, `cwe_description`, `language`, `vulnerable_code`, `fixed_code` 컬럼을 사용합니다. 학습 로더가 이를 DefAPI의 `instruction`, `input`, `output` 형식으로 변환합니다.
 
+CrossVul은 기본적으로 `train` split만 사용하므로 로더가 `eval_split_size: 0.1`, `seed: 42`로 train/eval을 자동 분리합니다. 별도 eval split이 있는 데이터셋은 `--eval-dataset-split`으로 지정할 수 있습니다.
+
 다른 Hugging Face dataset을 쓰려면:
 
 ```bash
 python -m defapi.training.qwen_qlora \
   --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
   --dataset-name hitoshura25/crossvul \
-  --dataset-split train
+  --dataset-split train \
+  --eval-dataset-split validation
 ```
 
 로컬 JSONL을 쓰려면 `dataset_path`를 지정합니다. JSONL은 각 줄에 `instruction`, `input`, `output` 필드가 있어야 합니다.

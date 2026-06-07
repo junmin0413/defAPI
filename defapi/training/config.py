@@ -10,6 +10,7 @@ class QwenQloraConfig:
     model_name: str = "Qwen/Qwen2.5-Coder-14B-Instruct"
     dataset_name: str | None = "hitoshura25/crossvul"
     dataset_split: str = "train"
+    eval_dataset_split: str | None = None
     dataset_path: Path | None = None
     eval_dataset_path: Path | None = None
     output_dir: Path = Path("/workspace/checkpoints/defapi-qwen2.5-coder-14b-qlora")
@@ -55,23 +56,25 @@ CONFIG_ALIASES = {
     "train_path": "dataset_path",
     "eval_path": "eval_dataset_path",
     "hf_dataset_name": "dataset_name",
+    "train_split": "dataset_split",
+    "eval_split": "eval_dataset_split",
 }
 
 
 def load_yaml_config(path: Path) -> dict[str, Any]:
     if not path.exists():
-        raise FileNotFoundError(f"Config file does not exist: {path}")
+        raise FileNotFoundError(f"설정 파일이 존재하지 않습니다: {path}")
 
     try:
         import yaml
     except ModuleNotFoundError as exc:
-        raise RuntimeError("PyYAML is required to load YAML configs. Install requirements-finetune.txt.") from exc
+        raise RuntimeError("YAML 설정을 읽으려면 PyYAML이 필요합니다. requirements-finetune.txt를 설치하세요.") from exc
 
     with path.open("r", encoding="utf-8") as file:
         data = yaml.safe_load(file) or {}
 
     if not isinstance(data, dict):
-        raise ValueError(f"Config file must contain a mapping/object: {path}")
+        raise ValueError(f"설정 파일은 key-value 객체 형태여야 합니다: {path}")
     return data
 
 
@@ -90,7 +93,7 @@ def normalize_config(raw_config: dict[str, Any]) -> dict[str, Any]:
     valid_fields = {field.name for field in fields(QwenQloraConfig)}
     unknown = sorted(set(raw) - valid_fields)
     if unknown:
-        raise ValueError(f"Unknown config key(s): {', '.join(unknown)}")
+        raise ValueError(f"알 수 없는 설정 키입니다: {', '.join(unknown)}")
 
     for key in PATH_FIELDS:
         if raw.get(key) is not None:
@@ -104,21 +107,21 @@ def apply_overrides(config: QwenQloraConfig, overrides: dict[str, Any]) -> QwenQ
         if value is None:
             continue
         if key not in valid_fields:
-            raise ValueError(f"Unknown config override: {key}")
+            raise ValueError(f"알 수 없는 CLI 설정 override입니다: {key}")
         setattr(config, key, Path(value) if key in PATH_FIELDS else value)
     return config
 
 
 def validate_config(config: QwenQloraConfig) -> None:
     if not config.dataset_name and config.dataset_path is None:
-        raise ValueError("Set either dataset_name for Hugging Face datasets or dataset_path for local JSONL.")
+        raise ValueError("Hugging Face dataset_name 또는 로컬 JSONL dataset_path 중 하나는 반드시 설정해야 합니다.")
     if config.fp16 and config.bf16:
-        raise ValueError("Only one of fp16 or bf16 can be enabled.")
+        raise ValueError("fp16과 bf16은 동시에 켤 수 없습니다. 둘 중 하나만 사용하세요.")
     if not 0 < config.eval_split_size < 1:
-        raise ValueError("eval_split_size must be between 0 and 1.")
+        raise ValueError("eval_split_size는 0보다 크고 1보다 작아야 합니다.")
     if config.batch_size < 1:
-        raise ValueError("batch_size must be >= 1.")
+        raise ValueError("batch_size는 1 이상이어야 합니다.")
     if config.gradient_accumulation_steps < 1:
-        raise ValueError("gradient_accumulation_steps must be >= 1.")
+        raise ValueError("gradient_accumulation_steps는 1 이상이어야 합니다.")
     if config.max_seq_length < 128:
-        raise ValueError("max_seq_length is unexpectedly small; use at least 128.")
+        raise ValueError("max_seq_length가 너무 작습니다. 최소 128 이상으로 설정하세요.")

@@ -74,4 +74,4 @@ def save_final_adapter(trainer: Any, tokenizer: Any, output_dir: Path) -> None:
     final_dir.mkdir(parents=True, exist_ok=True)
     trainer.model.save_pretrained(final_dir)
     tokenizer.save_pretrained(final_dir)
-    print(f"Saved final LoRA adapter to: {final_dir}")
+    print(f"최종 LoRA adapter를 저장했습니다: {final_dir}")

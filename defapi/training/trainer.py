@@ -149,7 +149,7 @@ def configure_wandb(config: QwenQloraConfig) -> None:
     try:
         import wandb
     except ModuleNotFoundError as exc:
-        raise RuntimeError("wandb is required when report_to='wandb'. Install requirements-finetune.txt.") from exc
+        raise RuntimeError("report_to='wandb'일 때는 wandb가 필요합니다. requirements-finetune.txt를 설치하세요.") from exc
 
     if wandb.run is None:
         wandb.init(

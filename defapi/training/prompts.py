@@ -56,7 +56,7 @@ def build_user_message(instruction: str, vulnerable_input: str) -> str:
 def required_text(example: Mapping[str, Any], field: str) -> str:
     value = example.get(field)
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"Dataset sample field must be a non-empty string: {field}")
+        raise ValueError(f"데이터셋 샘플 필드는 비어 있지 않은 문자열이어야 합니다: {field}")
     return value.strip()
 
 
