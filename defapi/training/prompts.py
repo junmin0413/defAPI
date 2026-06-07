@@ -1,6 +1,22 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping, Protocol, TypedDict, cast
+
+
+class ChatMessage(TypedDict):
+    role: str
+    content: str
+
+
+class ChatTemplateTokenizer(Protocol):
+    def apply_chat_template(
+        self,
+        conversation: list[ChatMessage],
+        *,
+        tokenize: bool,
+        add_generation_prompt: bool,
+    ) -> str:
+        ...
 
 
 SYSTEM_MESSAGE = (
@@ -37,20 +53,31 @@ def build_user_message(instruction: str, vulnerable_input: str) -> str:
     )
 
 
-def build_chat_messages(example: dict[str, Any]) -> list[dict[str, str]]:
+def required_text(example: Mapping[str, Any], field: str) -> str:
+    value = example.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Dataset sample field must be a non-empty string: {field}")
+    return value.strip()
+
+
+def build_chat_messages(example: Mapping[str, Any]) -> list[ChatMessage]:
     return [
         {"role": "system", "content": SYSTEM_MESSAGE},
         {
             "role": "user",
-            "content": build_user_message(example["instruction"], example["input"]),
+            "content": build_user_message(
+                required_text(example, "instruction"),
+                required_text(example, "input"),
+            ),
         },
-        {"role": "assistant", "content": example["output"].strip()},
+        {"role": "assistant", "content": required_text(example, "output")},
     ]
 
 
-def format_with_chat_template(example: dict[str, Any], tokenizer: Any) -> str:
-    return tokenizer.apply_chat_template(
+def format_with_chat_template(example: Mapping[str, Any], tokenizer: ChatTemplateTokenizer) -> str:
+    formatted = tokenizer.apply_chat_template(
         build_chat_messages(example),
         tokenize=False,
         add_generation_prompt=False,
     )
+    return cast(str, formatted)
