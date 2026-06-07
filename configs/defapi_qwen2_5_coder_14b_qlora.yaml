@@ -1,5 +1,7 @@
 model_name: Qwen/Qwen2.5-Coder-14B-Instruct
-dataset_path: /workspace/datasets/defapi_train.jsonl
+dataset_name: hitoshura25/crossvul
+dataset_split: train
+dataset_path:
 eval_dataset_path:
 output_dir: /workspace/checkpoints/defapi-qwen2.5-coder-14b-qlora
 

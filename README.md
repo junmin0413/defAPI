@@ -180,14 +180,25 @@ python -m defapi.training.qwen_qlora \
   --config configs/defapi_qwen2_5_coder_14b_qlora.yaml
 ```
 
-기본 설정은 RunPod 48GB GPU, QLoRA 4bit NF4, W&B logging, `/workspace/checkpoints` 저장 경로를 기준으로 합니다.
+기본 설정은 RunPod 48GB GPU, QLoRA 4bit NF4, W&B logging, `/workspace/checkpoints` 저장 경로를 기준으로 합니다. 데이터셋은 Hugging Face의 `hitoshura25/crossvul`을 사용합니다.
 
-학습 데이터는 JSONL 형식이며 각 줄에 `instruction`, `input`, `output` 필드가 있어야 합니다.
+`hitoshura25/crossvul`은 `cwe_id`, `cwe_description`, `language`, `vulnerable_code`, `fixed_code` 컬럼을 사용합니다. 학습 로더가 이를 DefAPI의 `instruction`, `input`, `output` 형식으로 변환합니다.
 
-예시:
+다른 Hugging Face dataset을 쓰려면:
 
-```jsonl
-{"instruction":"다음 코드의 보안 취약점을 분석하고 안전한 코드로 수정하라.","input":"import os\nfilename = input()\nos.system('cat ' + filename)","output":"취약점: 사용자 입력이 shell command에 직접 연결되어 command injection이 발생할 수 있다.\n\n수정 코드:\n```python\nfrom pathlib import Path\n...\n```\n\n수정 이유: shell 명령 실행을 제거했다.\n\n추가 주의사항: 파일 접근 권한과 예외 처리 정책도 함께 적용해야 한다."}
+```bash
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
+  --dataset-name hitoshura25/crossvul \
+  --dataset-split train
+```
+
+로컬 JSONL을 쓰려면 `dataset_path`를 지정합니다. JSONL은 각 줄에 `instruction`, `input`, `output` 필드가 있어야 합니다.
+
+```bash
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
+  --dataset-path /workspace/datasets/defapi_train.jsonl
 ```
 
 W&B 없이 실행:

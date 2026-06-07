@@ -19,6 +19,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--config", type=Path, help="YAML config path.")
     parser.add_argument("--model-name")
+    parser.add_argument("--dataset-name")
+    parser.add_argument("--dataset-split")
     parser.add_argument("--dataset-path", type=Path)
     parser.add_argument("--eval-dataset-path", type=Path)
     parser.add_argument("--output-dir", type=Path)
@@ -61,6 +63,8 @@ def config_from_args(args: argparse.Namespace) -> QwenQloraConfig:
 def cli_overrides(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "model_name": args.model_name,
+        "dataset_name": args.dataset_name,
+        "dataset_split": args.dataset_split,
         "dataset_path": args.dataset_path,
         "eval_dataset_path": args.eval_dataset_path,
         "output_dir": args.output_dir,

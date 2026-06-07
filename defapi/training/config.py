@@ -8,7 +8,9 @@ from typing import Any
 @dataclass
 class QwenQloraConfig:
     model_name: str = "Qwen/Qwen2.5-Coder-14B-Instruct"
-    dataset_path: Path = Path("/workspace/datasets/defapi_train.jsonl")
+    dataset_name: str | None = "hitoshura25/crossvul"
+    dataset_split: str = "train"
+    dataset_path: Path | None = None
     eval_dataset_path: Path | None = None
     output_dir: Path = Path("/workspace/checkpoints/defapi-qwen2.5-coder-14b-qlora")
 
@@ -52,6 +54,7 @@ CONFIG_ALIASES = {
     "per_device_train_batch_size": "batch_size",
     "train_path": "dataset_path",
     "eval_path": "eval_dataset_path",
+    "hf_dataset_name": "dataset_name",
 }
 
 
@@ -107,6 +110,8 @@ def apply_overrides(config: QwenQloraConfig, overrides: dict[str, Any]) -> QwenQ
 
 
 def validate_config(config: QwenQloraConfig) -> None:
+    if not config.dataset_name and config.dataset_path is None:
+        raise ValueError("Set either dataset_name for Hugging Face datasets or dataset_path for local JSONL.")
     if config.fp16 and config.bf16:
         raise ValueError("Only one of fp16 or bf16 can be enabled.")
     if not 0 < config.eval_split_size < 1:
