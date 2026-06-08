@@ -21,36 +21,55 @@ class ChatTemplateTokenizer(Protocol):
 
 SYSTEM_MESSAGE = (
     "You are a secure coding assistant. Analyze vulnerable code and provide "
-    "safe, practical fixes. Return concise, actionable remediation guidance "
-    "for security review reports."
+    "safe, practical fixes."
 )
 
-RESPONSE_SECTIONS = (
-    "취약점 설명",
-    "안전한 수정 코드",
-    "수정 이유",
-    "추가 주의사항",
-)
+RESPONSE_FORMAT_INSTRUCTION = """응답은 반드시 다음 네 섹션을 포함해야 한다.
+1. 취약점 설명
+2. 안전한 수정 코드
+3. 수정 이유
+4. 추가 주의사항"""
 
 
-def build_response_format_instruction() -> str:
-    numbered_sections = "\n".join(
-        f"{index}. {section}" for index, section in enumerate(RESPONSE_SECTIONS, start=1)
-    )
+def safe_strip(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def build_instruction(example: dict[str, Any]) -> str:
+    cwe_id = safe_strip(example.get("cwe_id"))
+    cwe_description = safe_strip(example.get("cwe_description"))
+    language = safe_strip(example.get("language"))
+
     return (
-        "응답은 반드시 아래 네 섹션을 같은 순서로 포함해야 한다.\n"
-        f"{numbered_sections}\n\n"
-        "각 섹션 제목은 그대로 사용하고, 수정 코드는 fenced code block으로 작성하라. "
-        "CWE, 언어, 취약 코드 정보가 제공되면 이를 근거로 분석하라."
-    )
+        f"다음 {language} 코드의 보안 취약점을 분석하고 안전하게 수정해라.\n"
+        f"CWE ID: {cwe_id}\n"
+        f"CWE 설명: {cwe_description}"
+    ).strip()
 
 
-def build_user_message(instruction: str, vulnerable_input: str) -> str:
+def build_user_message(example: dict[str, Any]) -> str:
+    vulnerable_code = safe_strip(example.get("vulnerable_code"))
+    instruction = build_instruction(example)
+
     return (
-        f"작업:\n{instruction.strip()}\n\n"
-        f"출력 형식:\n{build_response_format_instruction()}\n\n"
-        f"분석 대상:\n{vulnerable_input.strip()}"
-    )
+        f"{instruction}\n\n"
+        f"{RESPONSE_FORMAT_INSTRUCTION}\n\n"
+        f"분석 대상 코드:\n"
+        f"```{safe_strip(example.get('language_dir')) or safe_strip(example.get('language'))}\n"
+        f"{vulnerable_code}\n"
+        f"```"
+    ).strip()
+
+
+def build_assistant_message(example: dict[str, Any]) -> str:
+    cwe_id = safe_strip(example.get("cwe_id"))
+    cwe_description = safe_strip(example.get("cwe_description"))
+    fixed_code = safe_strip(example.get("fixed_code"))
+    language = safe_strip(example.get("language_dir")) or safe_strip(example.get("language"))
+
+    return f"1. 취약점 설명\n이 코드는 {cwe_id} 유형의 취약점과 관련이 있다. {cwe_description}\n\n2. 안전한 수정 코드\n{language}\n{fixed_code}"
 
 
 def required_text(example: Mapping[str, Any], field: str) -> str:
@@ -60,12 +79,20 @@ def required_text(example: Mapping[str, Any], field: str) -> str:
     return value.strip()
 
 
+def build_defapi_user_message(instruction: str, vulnerable_input: str) -> str:
+    return (
+        f"작업:\n{instruction.strip()}\n\n"
+        f"출력 형식:\n{RESPONSE_FORMAT_INSTRUCTION}\n\n"
+        f"분석 대상:\n{vulnerable_input.strip()}"
+    )
+
+
 def build_chat_messages(example: Mapping[str, Any]) -> list[ChatMessage]:
     return [
         {"role": "system", "content": SYSTEM_MESSAGE},
         {
             "role": "user",
-            "content": build_user_message(
+            "content": build_defapi_user_message(
                 required_text(example, "instruction"),
                 required_text(example, "input"),
             ),
