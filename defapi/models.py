@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field, field_validator
 class ScannerName(str, Enum):
     semgrep = "semgrep"
     trivy = "trivy"
-    zap = "zap"
 
 
 class ScanStatus(str, Enum):
@@ -38,7 +37,6 @@ class FindingSeverity(str, Enum):
 
 class ScanRequest(BaseModel):
     target: str = Field(..., min_length=1, description="Local directory or file to scan")
-    include_zap: bool = Field(default=False, description="ZAP is accepted but skipped in MVP 1")
 
     @field_validator("target")
     @classmethod
@@ -85,7 +83,6 @@ class Report(BaseModel):
 class ScanRecord(BaseModel):
     scan_id: str = Field(default_factory=lambda: uuid4().hex)
     target: str
-    include_zap: bool = False
     status: ScanStatus = ScanStatus.created
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None

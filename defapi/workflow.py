@@ -6,7 +6,7 @@ from typing import TypedDict
 
 from langgraph.graph import END, StateGraph
 
-from defapi.mcp import SemgrepMCP, TrivyMCP, ZapMCP
+from defapi.mcp import SemgrepMCP, TrivyMCP
 from defapi.models import Finding, Report, ScanRecord, ScannerResult
 from defapi.reports import ReportGenerator
 
@@ -23,7 +23,6 @@ class ScanWorkflow:
     def __init__(self) -> None:
         self.semgrep = SemgrepMCP()
         self.trivy = TrivyMCP()
-        self.zap = ZapMCP()
         self.report_generator = ReportGenerator()
         self.graph = self._build_graph()
 
@@ -41,11 +40,8 @@ class ScanWorkflow:
         return graph.compile()
 
     async def _scan(self, state: ScanState) -> ScanState:
-        record = state["record"]
         target = state["target"]
         scanners = [self.semgrep.scan(target), self.trivy.scan(target)]
-        if record.include_zap:
-            scanners.append(self.zap.scan(target))
         scanner_results = await asyncio.gather(*scanners)
         findings = [finding for result in scanner_results for finding in result.findings]
         return {**state, "scanner_results": scanner_results, "findings": findings}

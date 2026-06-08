@@ -6,7 +6,7 @@ defAPI는 로컬 코드 또는 디렉터리를 보안 스캐너로 분석하고 
 
 ```text
 사용자 코드
-  -> MCP 스캐너 분석(Semgrep, Trivy, ZAP placeholder)
+  -> MCP 스캐너 분석(Semgrep, Trivy)
   -> Finding 정규화
   -> 보안 보고서 생성
   -> 결과 반환
@@ -16,7 +16,7 @@ defAPI는 로컬 코드 또는 디렉터리를 보안 스캐너로 분석하고 
 
 ```mermaid
 flowchart TD
-    Request[Scan request] --> Scanners[Semgrep Trivy and optional ZAP scan]
+    Request[Scan request] --> Scanners[Semgrep and Trivy scan]
     Scanners --> Findings[Collect normalized findings]
     Findings --> Report[Build report]
 ```
@@ -29,14 +29,13 @@ flowchart TD
 
 - FastAPI `/health`, `/scan`, `/report/{scan_id}` API
 - LangGraph 기반 scan -> report workflow
-- Semgrep, Trivy, ZAP MCP wrapper
+- Semgrep, Trivy MCP wrapper
 - Scanner output을 공통 `Finding` 모델로 정규화
 - 스캐너 실행 결과와 severity count 기반 summary 생성
 - LoRA/SFT, DPO 학습 모듈 skeleton
 
 아직 제한적인 부분:
 
-- ZAP은 현재 placeholder이며 기본적으로 skipped 처리됩니다.
 - 테스트 러너 연동은 아직 없습니다.
 - fine-tuned/DPO 모델 inference는 아직 API workflow에 연결되어 있지 않습니다.
 
@@ -52,15 +51,13 @@ defapi/
     base.py               # 공통 command scanner wrapper
     semgrep.py            # Semgrep JSON parser
     trivy.py              # Trivy JSON parser
-    zap.py                # ZAP placeholder
   training/
-    config.py             # fine-tuning 설정
-    lora.py               # AdaLoRA/SFT trainer factory
-    dpo.py                # DPO trainer factory
-    common.py             # training 공통 유틸
-
-scripts/
-  train.py                # 학습 entrypoint
+    config.py             # Qwen QLoRA 학습 설정
+    data.py               # JSONL dataset 로딩/검증/split
+    prompts.py            # Qwen chat template prompt 구성
+    modeling.py           # 4bit model/tokenizer/LoRA 구성
+    trainer.py            # SFTTrainer/W&B/checkpoint orchestration
+    qwen_qlora.py         # Qwen2.5-Coder QLoRA 학습 entrypoint
 ```
 
 ## 설치
@@ -103,8 +100,6 @@ semgrep --version
 trivy --version
 ```
 
-ZAP은 현재 MVP에서 placeholder입니다. `include_zap=true`로 요청하면 skipped 결과가 포함될 수 있습니다.
-
 ## 실행
 
 API 서버 실행:
@@ -131,8 +126,7 @@ curl http://127.0.0.1:8000/health
 curl -X POST http://127.0.0.1:8000/scan \
   -H "Content-Type: application/json" \
   -d '{
-    "target": "/path/to/local/project",
-    "include_zap": false
+    "target": "/path/to/local/project"
   }'
 ```
 
@@ -179,53 +173,182 @@ curl http://127.0.0.1:8000/health
 
 ## 학습 실행
 
-SFT/LoRA 학습 데이터는 JSONL 형식이며 각 줄에 `prompt`, `completion` 필드가 있어야 합니다.
-
-예시:
-
-```jsonl
-{"prompt":"Analyze this vulnerable code:\n...", "completion":"Finding summary..."}
-```
-
-기본 실행:
+Qwen/Qwen2.5-Coder-14B-Instruct QLoRA fine-tuning은 `defapi.training` 패키지 안에 모듈별로 나뉘어 있습니다.
 
 ```bash
-python scripts/train.py \
-  --train-path dataset/ft_data.jsonl \
-  --test-path dataset/test_data.jsonl \
-  --output-dir results \
-  --new-model deepseek-coder-1.3b-instruct-adalora-gbsw \
-  --batch-size 1 \
-  --grad-accum 2 \
-  --max-seq-length 1024 \
-  --epochs 1
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml
+```
+
+기본 설정은 RunPod 48GB GPU, QLoRA 4bit NF4, W&B logging, `/workspace/checkpoints` 저장 경로를 기준으로 합니다. 데이터셋은 Hugging Face의 `hitoshura25/crossvul`을 사용합니다.
+
+`hitoshura25/crossvul`은 `cwe_id`, `cwe_description`, `language`, `vulnerable_code`, `fixed_code` 컬럼을 사용합니다. 학습 로더가 이를 DefAPI의 `instruction`, `input`, `output` 형식으로 변환합니다.
+
+CrossVul은 기본적으로 `train` split만 사용하므로 로더가 `eval_split_size: 0.1`, `seed: 42`로 train/eval을 자동 분리합니다. 별도 eval split이 있는 데이터셋은 `--eval-dataset-split`으로 지정할 수 있습니다.
+
+다른 Hugging Face dataset을 쓰려면:
+
+```bash
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
+  --dataset-name hitoshura25/crossvul \
+  --dataset-split train \
+  --eval-dataset-split validation
+```
+
+로컬 JSONL을 쓰려면 `dataset_path`를 지정합니다. JSONL은 각 줄에 `instruction`, `input`, `output` 필드가 있어야 합니다.
+
+```bash
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
+  --dataset-path /workspace/datasets/defapi_train.jsonl
 ```
 
 W&B 없이 실행:
 
 ```bash
-python scripts/train.py \
-  --train-path dataset/ft_data.jsonl \
-  --test-path dataset/test_data.jsonl \
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
   --report-to none
 ```
 
-4bit을 끄고 실행:
+중단된 checkpoint부터 재시작:
 
 ```bash
-python scripts/train.py \
-  --train-path dataset/ft_data.jsonl \
-  --test-path dataset/test_data.jsonl \
-  --report-to none \
-  --no-4bit
+python -m defapi.training.qwen_qlora \
+  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
+  --resume-from-checkpoint /workspace/checkpoints/defapi-qwen2.5-coder-14b-qlora/checkpoint-100
 ```
+
+## Phoenix LLM judge eval
+
+`eval/eval.py`는 `eval/cases/scan_cases.jsonl`의 fixture를 Phoenix dataset으로 업로드한 뒤 experiment를 실행합니다. 각 case는 defAPI `ScanWorkflow`를 직접 호출하고, 결과를 Phoenix evaluator 3개로 평가합니다.
+
+## 로컬 Baseline / 개선 실험 / 실패 분석
+
+Phoenix 없이 로컬에서 baseline과 개선 실험을 비교하려면 `eval/local_eval.py`를 사용합니다.
+
+baseline 실행:
+
+```bash
+python eval/local_eval.py --run-label baseline
+```
+
+개선 실험 실행(기존 baseline과 비교):
+
+```bash
+python eval/local_eval.py \
+  --run-label improved_v1 \
+  --compare-to eval/results/baseline.json
+```
+
+출력물:
+
+- `eval/results/{run_label}.json`: 케이스별 pass/fail, 이유, 스캔 요약
+- `eval/results/{run_label}_failures.md`: 실패 케이스 원인 리포트
+- `eval/results/{run_label}_vs_{baseline_label}.json`: baseline 대비 개선/회귀 케이스
+
+Evaluator:
+
+- `finding_count_bounds`: finding 개수가 case의 `min_findings_total`, `max_findings_total` 범위 안에 있는지 확인합니다.
+- `expected_scanners_completed`: case가 요구한 scanner가 정상 완료됐는지 확인합니다.
+- `llm_report_quality`: OpenAI model을 LLM judge로 사용해 finding이 fixture 설명과 실제로 관련 있는지 판정합니다.
+
+Scanner 역할:
+
+- `semgrep`: Python source code의 command injection, SQL injection, hardcoded secret 같은 코드 패턴을 탐지합니다.
+- `trivy`: `requirements.txt` 같은 dependency manifest에서 CVE가 있는 오래된 패키지를 탐지합니다.
+
+현재 eval case:
+
+| case | 기대 |
+| --- | --- |
+| `clean_python_project` | intentional vulnerability가 없으므로 finding 0개 |
+| `semgrep_hardcoded_secret` | 최소 finding 1개 |
+| `semgrep_command_injection` | 최소 finding 1개 |
+| `semgrep_sql_injection` | 최소 finding 1개 |
+| `trivy_vulnerable_requirements` | 최소 finding 1개 |
+
+Phoenix Cloud 설정:
+
+```bash
+export PHOENIX_BASE_URL="https://app.phoenix.arize.com/s/wkdwnsals0413"
+export PHOENIX_API_KEY="your-phoenix-api-key"
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+패키지 설치:
+
+```bash
+python -m pip uninstall -y phoenix
+python -m pip install arize-phoenix-client arize-phoenix-evals openai
+```
+
+주의: PyPI의 `phoenix` 패키지는 Arize Phoenix가 아닙니다. 설치되어 있으면 `SyntaxError: multiple exception types must be parenthesized`가 날 수 있으므로 제거해야 합니다.
+
+실행:
+
+```bash
+python eval/eval.py
+```
+
+LLM 호출 없이 연결과 스캔 러너만 먼저 확인:
+
+```bash
+python eval/eval.py --no-llm-judge --dry-run 1
+```
+
+기본 judge model은 `gpt-4o-mini`입니다. 바꾸려면 다음처럼 지정합니다.
+
+```bash
+python eval/eval.py --judge-model gpt-4o
+```
+
+실행이 성공하면 Phoenix가 dataset/experiment URL을 출력합니다.
+
+예시:
+
+```text
+View dataset experiments: https://app.phoenix.arize.com/s/wkdwnsals0413/datasets/.../experiments
+View this experiment: https://app.phoenix.arize.com/s/wkdwnsals0413/datasets/.../compare?experimentId=...
+Experiment completed: 5 task runs, 3 evaluator runs, 15 evaluations
+```
+
+최근 실행 결과 요약:
+
+| case | finding count | deterministic result | LLM judge |
+| --- | ---: | --- | --- |
+| `trivy_vulnerable_requirements` | 53 | pass | PASS |
+| `semgrep_sql_injection` | 4 | pass | PASS |
+| `semgrep_command_injection` | 3 | pass | PASS |
+| `semgrep_hardcoded_secret` | 2 | pass | PASS |
+| `clean_python_project` | 2 | fail | FAIL |
+
+`clean_python_project` 실패 원인:
+
+`clean_python_project`는 source code에 intentional vulnerability가 없는 false-positive baseline입니다. 하지만 현재 workflow는 case별 scanner 선택 없이 Semgrep과 Trivy를 모두 실행합니다. Semgrep은 코드 취약점을 찾지 않았지만, Trivy가 fixture의 `requirements.txt`에서 `requests` 관련 dependency CVE 2개를 찾았습니다.
+
+즉, LLM judge가 clean project를 못 찾은 이유는 judge 문제가 아니라 eval 기준과 scanner 범위가 어긋났기 때문입니다. `clean_python_project`의 기대값은 "코드 취약점 0개"인데, 실제 report에는 "dependency 취약점 2개"가 포함됐습니다.
+
+실제 finding:
+
+- `CVE-2024-47081`: Requests URL parsing issue
+- `CVE-2026-25645`: Requests predictable temporary file creation issue
+
+이 때문에 `finding_count_bounds`는 `findings_total=2, expected=0..0`으로 fail을 냈고, LLM judge도 "clean case인데 finding이 있으므로 FAIL"로 판정했습니다.
+
+해결 방향:
+
+- `clean_python_project/requirements.txt`의 dependency를 Trivy가 CVE로 잡지 않는 최신 버전으로 올립니다.
+- 또는 clean baseline에서는 Trivy를 제외하고 Semgrep만 실행하도록 eval case에 scanner 선택 옵션을 추가합니다.
+- 또는 평가 기준을 `source_findings_total`과 `dependency_findings_total`로 분리해서 clean source code와 vulnerable dependency를 따로 봅니다.
 
 ## 검증 명령
 
 문법/import 확인:
 
 ```bash
-python -m compileall -q defapi scripts
+python -m compileall -q defapi
 ```
 
 테스트 파일이 있을 때:
@@ -250,8 +373,7 @@ python -m pytest -q
 
 ```json
 {
-  "target": "/path/to/local/project",
-  "include_zap": false
+  "target": "/path/to/local/project"
 }
 ```
 

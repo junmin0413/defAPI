@@ -22,7 +22,6 @@ async def health() -> dict[str, str]:
 async def create_scan(request: ScanRequest) -> ScanResponse:
     record = ScanRecord(
         target=request.target,
-        include_zap=request.include_zap,
         status=ScanStatus.running,
     )
     records[record.scan_id] = record

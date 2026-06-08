@@ -1,3 +1,3 @@
-from defapi.training.config import FineTuneConfig
+from defapi.training.config import QwenQloraConfig
 
-__all__ = ["FineTuneConfig"]
+__all__ = ["QwenQloraConfig"]
