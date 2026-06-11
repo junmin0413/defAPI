@@ -52,12 +52,7 @@ defapi/
     semgrep.py            # Semgrep JSON parser
     trivy.py              # Trivy JSON parser
   training/
-    config.py             # Qwen QLoRA 학습 설정
-    data.py               # JSONL dataset 로딩/검증/split
-    prompts.py            # Qwen chat template prompt 구성
-    modeling.py           # 4bit model/tokenizer/LoRA 구성
-    trainer.py            # SFTTrainer/W&B/checkpoint orchestration
-    qwen_qlora.py         # Qwen2.5-Coder QLoRA 학습 entrypoint
+    defapi_qwen2_5_coder_14b_lora.ipynb  # RunPod A100 LoRA 학습 노트북
 ```
 
 ## 설치
@@ -71,7 +66,15 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-주의: `requirements.txt`에는 `torch`, `transformers`, `peft`, `trl`, `bitsandbytes` 같은 학습용 패키지도 포함되어 있습니다. 4bit 학습은 단일 NVIDIA GPU/CUDA 환경을 기준으로 합니다. Mac/CPU에서는 `bitsandbytes`나 대형 모델 학습이 정상 동작하지 않을 수 있습니다.
+주의: `requirements.txt`에는 API 실행용 패키지와 기존 학습용 패키지가 함께 들어 있습니다. RunPod Jupyter에서 LoRA 학습을 실행할 때는 버전 충돌을 피하기 위해 아래의 RunPod 전용 잠금 파일을 우선 사용하세요.
+
+RunPod CUDA 12.4 Jupyter 학습 환경:
+
+```bash
+pip install --upgrade --no-cache-dir -r requirements-runpod-cu124.txt
+```
+
+이 파일은 `torch==2.5.1+cu124`, `transformers==4.46.3`, `peft==0.13.2` 조합으로 고정되어 있습니다. 학습은 A100 80GB에서 bf16 LoRA로 실행하는 것을 기준으로 합니다. Mac/CPU에서는 대형 모델 학습이 정상 동작하지 않을 수 있습니다.
 
 ## 보안 스캐너 설치
 
@@ -171,54 +174,23 @@ docker run --rm -p 8000:8000 defapi
 curl http://127.0.0.1:8000/health
 ```
 
-## 학습 실행
+## LoRA 학습 실행
 
-Qwen/Qwen2.5-Coder-14B-Instruct QLoRA fine-tuning은 `defapi.training` 패키지 안에 모듈별로 나뉘어 있습니다.
+Qwen/Qwen2.5-Coder-14B-Instruct fine-tuning은 RunPod A100 80GB Jupyter에서 bf16 LoRA로 실행하는 것을 기준으로 합니다.
 
-```bash
-python -m defapi.training.qwen_qlora \
-  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml
-```
+RunPod Jupyter에서는 `defapi/training/defapi_qwen2_5_coder_14b_lora.ipynb`를 열고 fresh kernel에서 위에서부터 실행하면 됩니다. 첫 번째 코드 셀이 `requirements-runpod-cu124.txt`의 잠긴 패키지 버전을 확인하고, `torch` import 전에 필요한 패키지를 설치합니다.
 
-기본 설정은 RunPod 48GB GPU, QLoRA 4bit NF4, W&B logging, `/workspace/checkpoints` 저장 경로를 기준으로 합니다. 데이터셋은 Hugging Face의 `hitoshura25/crossvul`을 사용합니다.
+기본 smoke 설정은 `configs/defapi_qwen2_5_coder_14b_lora.yaml`와 동일하게 `train[:100]`, `max_seq_length: 1024`, W&B disabled, `/workspace/checkpoints/defapi-qwen2.5-coder-14b-lora-smoke` 저장 경로를 기준으로 합니다. 데이터셋은 Hugging Face의 `hitoshura25/crossvul`을 사용합니다.
 
 `hitoshura25/crossvul`은 `cwe_id`, `cwe_description`, `language`, `vulnerable_code`, `fixed_code` 컬럼을 사용합니다. 학습 로더가 이를 DefAPI의 `instruction`, `input`, `output` 형식으로 변환합니다.
 
 CrossVul은 기본적으로 `train` split만 사용하므로 로더가 `eval_split_size: 0.1`, `seed: 42`로 train/eval을 자동 분리합니다. 별도 eval split이 있는 데이터셋은 `--eval-dataset-split`으로 지정할 수 있습니다.
 
-다른 Hugging Face dataset을 쓰려면:
+다른 Hugging Face dataset을 쓰려면 노트북의 `CONFIG["dataset_name"]`, `CONFIG["dataset_split"]`, `CONFIG["eval_split"]` 값을 수정하세요.
 
-```bash
-python -m defapi.training.qwen_qlora \
-  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
-  --dataset-name hitoshura25/crossvul \
-  --dataset-split train \
-  --eval-dataset-split validation
-```
+로컬 JSONL을 쓰려면 노트북의 dataset load cell을 로컬 파일 로더로 바꾸면 됩니다. JSONL은 각 줄에 `instruction`, `input`, `output` 필드가 있어야 합니다.
 
-로컬 JSONL을 쓰려면 `dataset_path`를 지정합니다. JSONL은 각 줄에 `instruction`, `input`, `output` 필드가 있어야 합니다.
-
-```bash
-python -m defapi.training.qwen_qlora \
-  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
-  --dataset-path /workspace/datasets/defapi_train.jsonl
-```
-
-W&B 없이 실행:
-
-```bash
-python -m defapi.training.qwen_qlora \
-  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
-  --report-to none
-```
-
-중단된 checkpoint부터 재시작:
-
-```bash
-python -m defapi.training.qwen_qlora \
-  --config configs/defapi_qwen2_5_coder_14b_qlora.yaml \
-  --resume-from-checkpoint /workspace/checkpoints/defapi-qwen2.5-coder-14b-qlora/checkpoint-100
-```
+W&B 없이 실행하려면 노트북 `CONFIG["report_to"]`를 `none`으로 유지하세요. W&B를 사용할 때는 `CONFIG["report_to"] = "wandb"`로 바꾸고 로그인 셀을 실행하면 됩니다.
 
 ## Phoenix LLM judge eval
 

@@ -1,0 +1,40 @@
+{
+  "os":  "macOS-26.5-arm64-arm-64bit",
+  "python":  "CPython 3.12.7",
+  "startedAt":  "2026-06-08T02:56:09.798154Z",
+  "args":  [
+    "--config",
+    "configs/defapi_qwen2_5_coder_14b_qlora.yaml"
+  ],
+  "program":  "-m defapi.training.qwen_qlora",
+  "git":  {
+    "remote":  "https://github.com/wkd09/defAPI.git",
+    "commit":  "148bc0002fa8c854b0476314ec57ae983d1b62c2"
+  },
+  "email":  "wkdwnsals0413@gmail.com",
+  "root":  "/Users/jangjunmin/Documents/code/defAPI_project",
+  "host":  "jangjunmin-ui-MacBookPro.local",
+  "executable":  "/Users/jangjunmin/Documents/code/defAPI_project/.venv/bin/python",
+  "cpu_count":  10,
+  "cpu_count_logical":  10,
+  "disk":  {
+    "/":  {
+      "total":  "494384795648",
+      "used":  "471319502848"
+    }
+  },
+  "memory":  {
+    "total":  "17179869184"
+  },
+  "apple":  {
+    "name":  "Apple M4",
+    "ecpuCores":  6,
+    "pcpuCores":  4,
+    "gpuCores":  10,
+    "memoryGb":  16,
+    "swapTotalBytes":  "9663676416",
+    "ramTotalBytes":  "17179869184",
+    "macModel":  "Mac16,1"
+  },
+  "writerId":  "wgpc6nqbqwt4wtzbe197immk7rce73ag"
+}

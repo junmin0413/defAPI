@@ -1,0 +1,21 @@
+2026-06-08 11:56:09,800 INFO    MainThread:98333 [wandb_setup.py:_flush():81] Current SDK version is 0.26.1
+2026-06-08 11:56:09,801 INFO    MainThread:98333 [wandb_setup.py:_flush():81] Configure stats pid to 98333
+2026-06-08 11:56:09,801 INFO    MainThread:98333 [wandb_setup.py:_flush():81] Loading settings from environment variables
+2026-06-08 11:56:09,801 INFO    MainThread:98333 [wandb_init.py:setup_run_log_directory():723] Logging user logs to /Users/jangjunmin/Documents/code/defAPI_project/wandb/run-20260608_115609-9wne2s3b/logs/debug.log
+2026-06-08 11:56:09,801 INFO    MainThread:98333 [wandb_init.py:setup_run_log_directory():724] Logging internal logs to /Users/jangjunmin/Documents/code/defAPI_project/wandb/run-20260608_115609-9wne2s3b/logs/debug-internal.log
+2026-06-08 11:56:09,801 INFO    MainThread:98333 [wandb_init.py:init():850] calling init triggers
+2026-06-08 11:56:09,801 INFO    MainThread:98333 [wandb_init.py:init():855] wandb.init called with sweep_config: {}
+config: {'model_name': 'Qwen/Qwen2.5-Coder-14B-Instruct', 'dataset_name': 'hitoshura25/crossvul', 'dataset_split': 'train', 'eval_dataset_split': None, 'dataset_path': None, 'eval_dataset_path': None, 'output_dir': '/workspace/checkpoints/defapi-qwen2.5-coder-14b-qlora', 'max_seq_length': 2048, 'lora_r': 16, 'lora_alpha': 32, 'lora_dropout': 0.05, 'learning_rate': 0.0002, 'num_train_epochs': 1, 'batch_size': 1, 'gradient_accumulation_steps': 16, 'save_steps': 100, 'eval_steps': 100, 'logging_steps': 10, 'save_total_limit': 3, 'bf16': True, 'fp16': False, 'gradient_checkpointing': True, 'optim': 'paged_adamw_8bit', 'warmup_ratio': 0.03, 'weight_decay': 0.0, 'max_grad_norm': 0.3, 'lr_scheduler_type': 'cosine', 'wandb_project': 'defapi-finetuning', 'wandb_run_name': 'qwen2.5-coder-14b-qlora', 'report_to': 'wandb', 'seed': 42, 'eval_split_size': 0.1, 'resume_from_checkpoint': None, 'device_map': 'auto', 'trust_remote_code': True, 'packing': False, '_wandb': {}}
+2026-06-08 11:56:09,801 INFO    MainThread:98333 [wandb_init.py:init():898] starting backend
+2026-06-08 11:56:11,487 INFO    MainThread:98333 [wandb_init.py:init():913] sending inform_init request
+2026-06-08 11:56:12,430 INFO    MainThread:98333 [wandb_init.py:init():918] backend started and connected
+2026-06-08 11:56:12,433 INFO    MainThread:98333 [wandb_init.py:init():988] updated telemetry
+2026-06-08 11:56:12,469 INFO    MainThread:98333 [wandb_init.py:init():1011] communicating run to backend with 90.0 second timeout
+2026-06-08 11:56:12,956 INFO    MainThread:98333 [wandb_init.py:init():1056] starting run threads in backend
+2026-06-08 11:56:13,083 INFO    MainThread:98333 [wandb_run.py:_console_start():2554] atexit reg
+2026-06-08 11:56:13,083 INFO    MainThread:98333 [wandb_run.py:_redirect():2403] redirect: wrap_raw
+2026-06-08 11:56:13,083 INFO    MainThread:98333 [wandb_run.py:_redirect():2472] Wrapping output streams.
+2026-06-08 11:56:13,083 INFO    MainThread:98333 [wandb_run.py:_redirect():2495] Redirects installed.
+2026-06-08 11:56:13,092 INFO    MainThread:98333 [wandb_init.py:init():1094] run started, returning control to user process
+2026-06-08 11:56:48,146 INFO    wandb-AsyncioManager-main:98333 [service_client.py:_forward_responses():134] Reached EOF.
+2026-06-08 11:56:48,146 INFO    wandb-AsyncioManager-main:98333 [mailbox.py:close():155] Closing mailbox, abandoning 1 handles.
