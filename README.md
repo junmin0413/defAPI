@@ -180,7 +180,7 @@ Qwen/Qwen2.5-Coder-14B-Instruct fine-tuning은 RunPod A100 80GB Jupyter에서 bf
 
 RunPod Jupyter에서는 `defapi/training/defapi_qwen2_5_coder_14b_lora.ipynb`를 열고 fresh kernel에서 위에서부터 실행하면 됩니다. 첫 번째 코드 셀이 `requirements-runpod-cu124.txt`의 잠긴 패키지 버전을 확인하고, `torch` import 전에 필요한 패키지를 설치합니다.
 
-기본 smoke 설정은 `configs/defapi_qwen2_5_coder_14b_lora.yaml`와 동일하게 `train[:100]`, `max_seq_length: 1024`, W&B disabled, `/workspace/checkpoints/defapi-qwen2.5-coder-14b-lora-smoke` 저장 경로를 기준으로 합니다. 데이터셋은 Hugging Face의 `hitoshura25/crossvul`을 사용합니다.
+기본 설정은 `configs/defapi_qwen2_5_coder_14b_lora.yaml`와 동일하게 전체 `train` split, `max_seq_length: 2048`, W&B enabled, `/workspace/checkpoints/defapi-qwen2.5-coder-14b-lora` 저장 경로를 기준으로 합니다. VRAM 여유를 쓰기 위해 FlashAttention 대신 `attn_implementation: sdpa`를 사용하고 `gradient_checkpointing: false`로 둡니다. 데이터셋은 Hugging Face의 `hitoshura25/crossvul`을 사용합니다.
 
 `hitoshura25/crossvul`은 `cwe_id`, `cwe_description`, `language`, `vulnerable_code`, `fixed_code` 컬럼을 사용합니다. 학습 로더가 이를 DefAPI의 `instruction`, `input`, `output` 형식으로 변환합니다.
 
@@ -190,7 +190,7 @@ CrossVul은 기본적으로 `train` split만 사용하므로 로더가 `eval_spl
 
 로컬 JSONL을 쓰려면 노트북의 dataset load cell을 로컬 파일 로더로 바꾸면 됩니다. JSONL은 각 줄에 `instruction`, `input`, `output` 필드가 있어야 합니다.
 
-W&B 없이 실행하려면 노트북 `CONFIG["report_to"]`를 `none`으로 유지하세요. W&B를 사용할 때는 `CONFIG["report_to"] = "wandb"`로 바꾸고 로그인 셀을 실행하면 됩니다.
+W&B 없이 실행하려면 노트북 `CONFIG["report_to"]`를 `none`으로 바꾸세요. W&B를 사용할 때는 기본값인 `CONFIG["report_to"] = "wandb"`를 유지하고 로그인 셀을 실행하면 됩니다.
 
 ## Phoenix LLM judge eval
 
