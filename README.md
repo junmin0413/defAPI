@@ -6,7 +6,7 @@ defAPI는 로컬 코드 또는 디렉터리를 보안 스캐너로 분석하고 
 
 ```text
 사용자 코드
-  -> MCP 스캐너 분석(Semgrep, Trivy)
+  -> MCP 스캐너 분석(Semgrep, Trivy, CodeQL)
   -> Finding 정규화
   -> 보안 보고서 생성
   -> 결과 반환
@@ -16,7 +16,7 @@ defAPI는 로컬 코드 또는 디렉터리를 보안 스캐너로 분석하고 
 
 ```mermaid
 flowchart TD
-    Request[Scan request] --> Scanners[Semgrep and Trivy scan]
+    Request[Scan request] --> Scanners[Semgrep, Trivy, and CodeQL scan]
     Scanners --> Findings[Collect normalized findings]
     Findings --> Report[Build report]
 ```
@@ -29,7 +29,7 @@ flowchart TD
 
 - FastAPI `/health`, `/scan`, `/report/{scan_id}` API
 - LangGraph 기반 scan -> report workflow
-- Semgrep, Trivy MCP wrapper
+- Semgrep, Trivy, CodeQL MCP wrapper
 - Scanner output을 공통 `Finding` 모델로 정규화
 - 스캐너 실행 결과와 severity count 기반 summary 생성
 - LoRA/SFT, DPO 학습 모듈 skeleton
@@ -51,6 +51,7 @@ defapi/
     base.py               # 공통 command scanner wrapper
     semgrep.py            # Semgrep JSON parser
     trivy.py              # Trivy JSON parser
+    codeql.py             # CodeQL database/analyze runner and SARIF parser
   training/
     defapi_qwen2_5_coder_14b_lora.ipynb  # RunPod A100 LoRA 학습 노트북
 ```
@@ -96,11 +97,18 @@ Trivy Linux:
 curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 ```
 
+CodeQL CLI:
+
+```bash
+brew install codeql
+```
+
 설치 확인:
 
 ```bash
 semgrep --version
 trivy --version
+codeql --version
 ```
 
 ## 실행
@@ -230,6 +238,7 @@ Scanner 역할:
 
 - `semgrep`: Python source code의 command injection, SQL injection, hardcoded secret 같은 코드 패턴을 탐지합니다.
 - `trivy`: `requirements.txt` 같은 dependency manifest에서 CVE가 있는 오래된 패키지를 탐지합니다.
+- `codeql`: Python/JavaScript/TypeScript source-root를 CodeQL database로 만든 뒤 security-and-quality query suite의 SARIF 결과를 정규화합니다.
 
 현재 eval case:
 

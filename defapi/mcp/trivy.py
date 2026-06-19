@@ -22,6 +22,7 @@ class TrivyMCP(CommandMCP):
         findings: list[Finding] = []
         for result in payload.get("Results", []):
             file_path = result.get("Target")
+            # Trivy의 dependency CVE 결과를 Finding으로 정규화합니다.
             for vuln in result.get("Vulnerabilities", []) or []:
                 findings.append(
                     Finding(
@@ -36,6 +37,7 @@ class TrivyMCP(CommandMCP):
                         raw=vuln,
                     )
                 )
+            # IaC/Docker/Kubernetes 설정 오류는 Vulnerabilities와 다른 필드로 내려옵니다.
             for misconf in result.get("Misconfigurations", []) or []:
                 findings.append(
                     Finding(
@@ -58,4 +60,3 @@ class TrivyMCP(CommandMCP):
         if normalized in FindingSeverity.__members__:
             return FindingSeverity(normalized)
         return FindingSeverity.info
-

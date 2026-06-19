@@ -1,4 +1,0 @@
-django==1.2
-flask==0.12
-jinja2==2.10
-pyyaml==3.13

@@ -20,6 +20,7 @@ def compact_json(value: dict[str, Any]) -> str:
 class ScannerName(str, Enum):
     semgrep = "semgrep"
     trivy = "trivy"
+    codeql = "codeql"
 
 
 class ScanStatus(str, Enum):

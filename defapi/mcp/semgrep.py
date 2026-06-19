@@ -17,12 +17,14 @@ class SemgrepMCP(CommandMCP):
 
     def command(self, target: Path) -> list[str]:
         rules = Path(__file__).resolve().parents[2] / "eval/semgrep_rules.yml"
+        # 로컬 커스텀 룰이 있으면 우선 사용하고, 없으면 Semgrep Registry의 auto 설정을 씁니다.
         config = str(rules) if rules.exists() else "auto"
         return ["semgrep", "--config", config, "--json", "--quiet", "--metrics", "off", str(target)]
 
     def parse_findings(self, payload: dict[str, Any]) -> list[Finding]:
         findings: list[Finding] = []
         for item in payload.get("results", []):
+            # Semgrep JSON의 위치/메타데이터 필드를 DefAPI 공통 Finding 형태로 접습니다.
             extra = item.get("extra", {})
             metadata = extra.get("metadata", {})
             start = item.get("start", {})
@@ -48,13 +50,13 @@ class SemgrepMCP(CommandMCP):
         normalized = str(value or "info").lower()
         if normalized == "error":
             return FindingSeverity.high
-        
+
         if normalized == "warning":
             return FindingSeverity.medium
-        
+
         if normalized in FindingSeverity.__members__:
             return FindingSeverity(normalized)
-        
+
         return FindingSeverity.info
 
     def _list(self, value: Any) -> list[str]:
