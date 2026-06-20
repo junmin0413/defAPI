@@ -1,25 +1,65 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+
 from openai import OpenAI
 
-client = OpenAI(
-    api_key="EMPTY",
-    base_url=f"http://127.0.0.1:30000/v1",
+from defapi.models import Report
+
+
+SYSTEM_MESSAGE = (
+    "You are a secure coding assistant. Analyze vulnerable code and provide safe, practical fixes."
 )
+RESPONSE_FORMAT = """응답은 반드시 다음 네 섹션을 순서대로 포함해야 한다.
+1. 취약점 설명
+2. 안전한 수정 코드
+3. 수정 이유
+4. 추가 주의사항"""
 
-model = "Qwen/qwen2.5-coder-14b"
 
-lora = 
+@dataclass(frozen=True)
+class SGLangConfig:
+    base_url: str = field(default_factory=lambda: os.getenv("SGLANG_BASE_URL", "http://127.0.0.1:30000/v1"))
+    api_key: str = field(default_factory=lambda: os.getenv("SGLANG_API_KEY", "None"))
+    model: str = field(default_factory=lambda: os.getenv("SGLANG_MODEL", "Qwen/Qwen2.5-Coder-14B-Instruct"))
+    lora_name: str | None = field(default_factory=lambda: os.getenv("SGLANG_LORA_NAME", "defapi"))
+    max_tokens: int = field(default_factory=lambda: int(os.getenv("SGLANG_MAX_TOKENS", "2048")))
+    temperature: float = field(default_factory=lambda: float(os.getenv("SGLANG_TEMPERATURE", "0.1")))
 
-messages = [{
-    "role": "user",
-    "content": "you should fix a vulner"
-}]
+    @property
+    def request_model(self) -> str:
+        if self.lora_name:
+            return f"{self.model}:{self.lora_name}"
+        return self.model
 
-response = client.chat.completions.create(
-    model=model,
-    messages=messages,
-    extra_body={
-        "chat_template_kwargs": {"enable_thinking":True},
-        "separate_reasoning": True
-    }
-)
 
+class LLMClient:
+    """OpenAI-compatible client for a separately running SGLang server."""
+
+    def __init__(self, config: SGLangConfig | None = None) -> None:
+        self.config = config or SGLangConfig()
+        self.client = OpenAI(
+            api_key=self.config.api_key,
+            base_url=self.config.base_url,
+        )
+
+    def generate_repair(self, report: Report) -> str:
+        response = self.client.chat.completions.create(
+            model=self.config.request_model,
+            messages=[
+                {"role": "system", "content": SYSTEM_MESSAGE},
+                {
+                    "role": "user",
+                    "content": (
+                        "작업:\n"
+                        "다음 스캔 결과의 보안 취약점을 분석하고 안전한 코드로 수정하라.\n\n"
+                        f"출력 형식:\n{RESPONSE_FORMAT}\n\n"
+                        f"분석 대상:\n{report.to_finetuning_input()}"
+                    ),
+                },
+            ],
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+        )
+        return response.choices[0].message.content or ""

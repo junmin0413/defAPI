@@ -28,6 +28,7 @@ flowchart TD
 구현됨:
 
 - FastAPI `/health`, `/scan`, `/report/{scan_id}` API
+- FastMCP 기반 MCP server tools
 - LangGraph 기반 scan -> report workflow
 - Semgrep, Trivy, CodeQL MCP wrapper
 - Scanner output을 공통 `Finding` 모델로 정규화
@@ -48,10 +49,8 @@ defapi/
   workflow.py             # scan/report pipeline
   reports.py              # report 생성
   mcp/
-    base.py               # 공통 command scanner wrapper
-    semgrep.py            # Semgrep JSON parser
-    trivy.py              # Trivy JSON parser
-    codeql.py             # CodeQL database/analyze runner and SARIF parser
+    scanners.py           # Semgrep, Trivy, CodeQL CLI wrapper/parser
+    server.py             # FastMCP tool server
   training/
     defapi_qwen2_5_coder_14b_lora.ipynb  # RunPod A100 LoRA 학습 노트북
 ```
@@ -161,6 +160,21 @@ curl http://127.0.0.1:8000/report/{scan_id}
 - scanner 실행 결과
 - normalized finding 목록
 - summary count
+
+## FastMCP 서버 실행
+
+MCP 클라이언트에서 defAPI 스캐너를 tool로 쓰려면 FastMCP 서버를 실행합니다.
+
+```bash
+python -m defapi.mcp.server
+```
+
+등록된 tool:
+
+- `list_scanners`: 사용 가능한 scanner 이름 반환
+- `scanner_health`: Semgrep, Trivy, CodeQL CLI 설치 경로 확인
+- `scan_with_scanner`: 특정 scanner 하나만 실행
+- `scan_project`: Semgrep, Trivy, CodeQL 전체 workflow 실행
 
 ## Docker 실행
 

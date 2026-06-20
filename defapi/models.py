@@ -171,6 +171,7 @@ class Report(BaseModel):
     target: str
     status: ScanStatus
     created_at: datetime
+    repair: str | None = None
     completed_at: datetime | None = None
     scanner_results: list[ScannerResult] = Field(default_factory=list)
     summary: dict[str, int] = Field(default_factory=dict)

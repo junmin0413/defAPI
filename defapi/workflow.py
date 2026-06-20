@@ -9,6 +9,7 @@ from langgraph.graph import END, StateGraph
 from defapi.mcp import CodeQLMCP, SemgrepMCP, TrivyMCP
 from defapi.models import Finding, Report, ScanRecord, ScannerResult
 from defapi.reports import ReportGenerator
+from defapi.llm import LLMClient
 
 
 class ScanState(TypedDict, total=False):
@@ -25,6 +26,7 @@ class ScanWorkflow:
         self.trivy = TrivyMCP()
         self.codeql = CodeQLMCP()
         self.report_generator = ReportGenerator()
+        self.llm = LLMClient()
         self.graph = self._build_graph()
 
     async def run(self, record: ScanRecord) -> Report:
@@ -36,9 +38,12 @@ class ScanWorkflow:
         graph = StateGraph(ScanState)
         graph.add_node("scan", self._scan)
         graph.add_node("report", self._report)
+        graph.add_node("repair", self._repair)
+
         graph.set_entry_point("scan")
         graph.add_edge("scan", "report")
-        graph.add_edge("report", END)
+        graph.add_edge("report", "repair")
+        graph.add_edge("repair", END)
         return graph.compile()
 
     async def _scan(self, state: ScanState) -> ScanState:
@@ -59,3 +64,13 @@ class ScanWorkflow:
             state.get("scanner_results", []),
         )
         return {**state, "report": report}
+    
+    async def _repair(self, state: ScanState) -> ScanState:
+        report = state["report"]
+
+        if report.summary.get("findings_total", 0) == 0:
+            return state
+        
+        repair_text =await asyncio.to_thread(self.generate_repair, report)
+        repaired_report = report.model_copy(update={"repair": repair_text})
+        return {**state, "report": repaired_report}

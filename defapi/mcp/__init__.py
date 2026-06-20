@@ -1,5 +1,3 @@
-from defapi.mcp.codeql import CodeQLMCP
-from defapi.mcp.semgrep import SemgrepMCP
-from defapi.mcp.trivy import TrivyMCP
+from defapi.mcp.scanners import CodeQLMCP, CommandMCP, SemgrepMCP, TrivyMCP
 
-__all__ = ["CodeQLMCP", "SemgrepMCP", "TrivyMCP"]
+__all__ = ["CodeQLMCP", "CommandMCP", "SemgrepMCP", "TrivyMCP"]
