@@ -71,6 +71,6 @@ class ScanWorkflow:
         if report.summary.get("findings_total", 0) == 0:
             return state
         
-        repair_text =await asyncio.to_thread(self.generate_repair, report)
+        repair_text = await asyncio.to_thread(self.llm.generate_repair, report)
         repaired_report = report.model_copy(update={"repair": repair_text})
         return {**state, "report": repaired_report}

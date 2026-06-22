@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from openai import OpenAI
 
@@ -18,6 +19,25 @@ RESPONSE_FORMAT = """응답은 반드시 다음 네 섹션을 순서대로 포�
 4. 추가 주의사항"""
 
 
+def _load_project_env() -> None:
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_project_env()
+
+
 @dataclass(frozen=True)
 class SGLangConfig:
     base_url: str = field(default_factory=lambda: os.getenv("SGLANG_BASE_URL", "http://127.0.0.1:30000/v1"))
@@ -30,6 +50,8 @@ class SGLangConfig:
     @property
     def request_model(self) -> str:
         if self.lora_name:
+            if self.model.endswith(f":{self.lora_name}"):
+                return self.model
             return f"{self.model}:{self.lora_name}"
         return self.model
 

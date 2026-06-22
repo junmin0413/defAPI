@@ -1,11 +1,47 @@
-# ...existing code...
+# Local secrets
 .env
-.venv
-# ...existing code...
-__pycache__/
-.pytest_cache/
+.env.*
+!.env.example
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Local runtime state
 .phoenix/
 .scanner/
-
+wandb/
 .wandb/
+
+# Model, adapter, and training artifacts
+lora_adapter/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.gguf
+checkpoints/
+
+# Generated packages and outputs
+*.zip
+eval/results/
+output/
+tmp/

@@ -202,141 +202,66 @@ Qwen/Qwen2.5-Coder-14B-Instruct fine-tuning은 RunPod A100 80GB Jupyter에서 bf
 
 RunPod Jupyter에서는 `defapi/training/defapi_qwen2_5_coder_14b_lora.ipynb`를 열고 fresh kernel에서 위에서부터 실행하면 됩니다. 첫 번째 코드 셀이 `requirements-runpod-cu124.txt`의 잠긴 패키지 버전을 확인하고, `torch` import 전에 필요한 패키지를 설치합니다.
 
-기본 설정은 `configs/defapi_qwen2_5_coder_14b_lora.yaml`와 동일하게 전체 `train` split, `max_seq_length: 2048`, W&B enabled, `/workspace/checkpoints/defapi-qwen2.5-coder-14b-lora` 저장 경로를 기준으로 합니다. VRAM 여유를 쓰기 위해 FlashAttention 대신 `attn_implementation: sdpa`를 사용하고 `gradient_checkpointing: false`로 둡니다. 데이터셋은 Hugging Face의 `hitoshura25/crossvul`을 사용합니다.
+노트북은 RunPod 업로드 편의를 위해 SFT 전처리와 assistant-only label masking helper를 내부 셀에 포함합니다. 따라서 repo 전체가 아니라 `.ipynb`와 requirements 파일만 업로드해도 학습 셀이 실행됩니다.
 
-`hitoshura25/crossvul`은 `cwe_id`, `cwe_description`, `language`, `vulnerable_code`, `fixed_code` 컬럼을 사용합니다. 학습 로더가 이를 DefAPI의 `instruction`, `input`, `output` 형식으로 변환합니다.
+기본 설정은 전체 `train` split, `max_seq_length: 2048`, `/workspace/checkpoints/defapi-qwen2.5-coder-14b-lora` 저장 경로를 기준으로 합니다. RunPod RTX A6000에서도 버티기 쉽도록 FlashAttention 대신 `attn_implementation: sdpa`, `gradient_checkpointing: true`, W&B disabled(`report_to: none`)가 기본입니다. dtype은 GPU가 bf16을 지원하면 bf16, 아니면 fp16으로 자동 선택합니다. 데이터셋은 Hugging Face의 `hitoshura25/crossvul`을 사용합니다.
+
+`hitoshura25/crossvul`은 `cwe_id`, `cwe_description`, `language`, `vulnerable_code`, `fixed_code` 컬럼을 사용합니다. 학습 로더는 이를 chat SFT 형식으로 변환합니다.
+
+- user message: 취약 코드와 "수정하고 짧게 설명하라"는 요청만 포함
+- assistant message: 수정 코드 block과 짧은 설명만 포함
+- `CWE:`, `Description:`, `Language:`, `Vulnerable code:` 같은 원본 데이터셋 필드 라벨은 assistant target에 넣지 않음
+
+토큰화 후 `labels`는 assistant 응답 토큰에만 남기고 system/user prompt 토큰은 `-100`으로 mask합니다. 노트북의 tokenizer 셀은 재학습 전에 샘플 5개를 디코딩해 실제 loss target을 출력하고, prompt field label이 target에 섞이면 실패하도록 검사합니다.
 
 CrossVul은 기본적으로 `train` split만 사용하므로 로더가 `eval_split_size: 0.1`, `seed: 42`로 train/eval을 자동 분리합니다. 별도 eval split이 있는 데이터셋은 `--eval-dataset-split`으로 지정할 수 있습니다.
 
 다른 Hugging Face dataset을 쓰려면 노트북의 `CONFIG["dataset_name"]`, `CONFIG["dataset_split"]`, `CONFIG["eval_split"]` 값을 수정하세요.
 
-로컬 JSONL을 쓰려면 노트북의 dataset load cell을 로컬 파일 로더로 바꾸면 됩니다. JSONL은 각 줄에 `instruction`, `input`, `output` 필드가 있어야 합니다.
+로컬 JSONL을 쓰려면 노트북의 dataset load cell을 로컬 파일 로더로 바꾸면 됩니다. JSONL은 각 줄에 `instruction`, `input`, `output` 필드를 두거나 CrossVul과 같은 `cwe_id`, `cwe_description`, `language`, `vulnerable_code`, `fixed_code` 필드를 둘 수 있습니다.
 
 W&B 없이 실행하려면 노트북 `CONFIG["report_to"]`를 `none`으로 바꾸세요. W&B를 사용할 때는 기본값인 `CONFIG["report_to"] = "wandb"`를 유지하고 로그인 셀을 실행하면 됩니다.
 
-## Phoenix LLM judge eval
+## Base model / Fine-tuned LoRA 비교
 
-`eval/eval.py`는 `eval/cases/scan_cases.jsonl`의 fixture를 Phoenix dataset으로 업로드한 뒤 experiment를 실행합니다. 각 case는 defAPI `ScanWorkflow`를 직접 호출하고, 결과를 Phoenix evaluator 3개로 평가합니다.
-
-## 로컬 Baseline / 개선 실험 / 실패 분석
-
-Phoenix 없이 로컬에서 baseline과 개선 실험을 비교하려면 `eval/local_eval.py`를 사용합니다.
-
-baseline 실행:
-
-```bash
-python eval/local_eval.py --run-label baseline
-```
-
-개선 실험 실행(기존 baseline과 비교):
-
-```bash
-python eval/local_eval.py \
-  --run-label improved_v1 \
-  --compare-to eval/results/baseline.json
-```
-
-출력물:
-
-- `eval/results/{run_label}.json`: 케이스별 pass/fail, 이유, 스캔 요약
-- `eval/results/{run_label}_failures.md`: 실패 케이스 원인 리포트
-- `eval/results/{run_label}_vs_{baseline_label}.json`: baseline 대비 개선/회귀 케이스
-
-Evaluator:
-
-- `finding_count_bounds`: finding 개수가 case의 `min_findings_total`, `max_findings_total` 범위 안에 있는지 확인합니다.
-- `expected_scanners_completed`: case가 요구한 scanner가 정상 완료됐는지 확인합니다.
-- `llm_report_quality`: OpenAI model을 LLM judge로 사용해 finding이 fixture 설명과 실제로 관련 있는지 판정합니다.
-
-Scanner 역할:
-
-- `semgrep`: Python source code의 command injection, SQL injection, hardcoded secret 같은 코드 패턴을 탐지합니다.
-- `trivy`: `requirements.txt` 같은 dependency manifest에서 CVE가 있는 오래된 패키지를 탐지합니다.
-- `codeql`: Python/JavaScript/TypeScript source-root를 CodeQL database로 만든 뒤 security-and-quality query suite의 SARIF 결과를 정규화합니다.
-
-현재 eval case:
-
-| case | 기대 |
-| --- | --- |
-| `clean_python_project` | intentional vulnerability가 없으므로 finding 0개 |
-| `semgrep_hardcoded_secret` | 최소 finding 1개 |
-| `semgrep_command_injection` | 최소 finding 1개 |
-| `semgrep_sql_injection` | 최소 finding 1개 |
-| `trivy_vulnerable_requirements` | 최소 finding 1개 |
-
-Phoenix Cloud 설정:
-
-```bash
-export PHOENIX_BASE_URL="https://app.phoenix.arize.com/s/wkdwnsals0413"
-export PHOENIX_API_KEY="your-phoenix-api-key"
-export OPENAI_API_KEY="your-openai-api-key"
-```
-
-패키지 설치:
-
-```bash
-python -m pip uninstall -y phoenix
-python -m pip install arize-phoenix-client arize-phoenix-evals openai
-```
-
-주의: PyPI의 `phoenix` 패키지는 Arize Phoenix가 아닙니다. 설치되어 있으면 `SyntaxError: multiple exception types must be parenthesized`가 날 수 있으므로 제거해야 합니다.
-
-실행:
+재학습 후 평가는 하나만 실행합니다. SGLang 연결과 모델명은 `.env`의 `SGLANG_*` 값을 사용하고, 결과는 LangSmith에 기록합니다.
 
 ```bash
 python eval/eval.py
 ```
 
-LLM 호출 없이 연결과 스캔 러너만 먼저 확인:
+필요한 환경 변수:
 
 ```bash
-python eval/eval.py --no-llm-judge --dry-run 1
+LANGSMITH_API_KEY=...
 ```
 
-기본 judge model은 `gpt-4o-mini`입니다. 바꾸려면 다음처럼 지정합니다.
+비교 대상:
 
-```bash
-python eval/eval.py --judge-model gpt-4o
-```
+- base: `Qwen/Qwen2.5-Coder-14B-Instruct`
+- fine-tuned: `Qwen/Qwen2.5-Coder-14B-Instruct:defapi`
 
-실행이 성공하면 Phoenix가 dataset/experiment URL을 출력합니다.
+평가 케이스:
 
-예시:
+- command injection
+- SQL injection
+- `eval(user_input)`
+- hardcoded secret
+- path traversal
 
-```text
-View dataset experiments: https://app.phoenix.arize.com/s/wkdwnsals0413/datasets/.../experiments
-View this experiment: https://app.phoenix.arize.com/s/wkdwnsals0413/datasets/.../compare?experimentId=...
-Experiment completed: 5 task runs, 3 evaluator runs, 15 evaluations
-```
+비교 기준:
 
-최근 실행 결과 요약:
+- 수정 코드 block이 있는지
+- 취약점별 핵심 단어가 들어갔는지
+- `CWE:`, `Description:`, `Vulnerable code:` 같은 데이터셋 필드를 그대로 출력하지 않는지
 
-| case | finding count | deterministic result | LLM judge |
-| --- | ---: | --- | --- |
-| `trivy_vulnerable_requirements` | 53 | pass | PASS |
-| `semgrep_sql_injection` | 4 | pass | PASS |
-| `semgrep_command_injection` | 3 | pass | PASS |
-| `semgrep_hardcoded_secret` | 2 | pass | PASS |
-| `clean_python_project` | 2 | fail | FAIL |
+실행하면 LangSmith에 세 개의 experiment가 만들어집니다.
 
-`clean_python_project` 실패 원인:
+- `{timestamp}-base`
+- `{timestamp}-lora`
+- `{timestamp}-base-vs-lora`
 
-`clean_python_project`는 source code에 intentional vulnerability가 없는 false-positive baseline입니다. 하지만 현재 workflow는 case별 scanner 선택 없이 Semgrep과 Trivy를 모두 실행합니다. Semgrep은 코드 취약점을 찾지 않았지만, Trivy가 fixture의 `requirements.txt`에서 `requests` 관련 dependency CVE 2개를 찾았습니다.
-
-즉, LLM judge가 clean project를 못 찾은 이유는 judge 문제가 아니라 eval 기준과 scanner 범위가 어긋났기 때문입니다. `clean_python_project`의 기대값은 "코드 취약점 0개"인데, 실제 report에는 "dependency 취약점 2개"가 포함됐습니다.
-
-실제 finding:
-
-- `CVE-2024-47081`: Requests URL parsing issue
-- `CVE-2026-25645`: Requests predictable temporary file creation issue
-
-이 때문에 `finding_count_bounds`는 `findings_total=2, expected=0..0`으로 fail을 냈고, LLM judge도 "clean case인데 finding이 있으므로 FAIL"로 판정했습니다.
-
-해결 방향:
-
-- `clean_python_project/requirements.txt`의 dependency를 Trivy가 CVE로 잡지 않는 최신 버전으로 올립니다.
-- 또는 clean baseline에서는 Trivy를 제외하고 Semgrep만 실행하도록 eval case에 scanner 선택 옵션을 추가합니다.
-- 또는 평가 기준을 `source_findings_total`과 `dependency_findings_total`로 분리해서 clean source code와 vulnerable dependency를 따로 봅니다.
+로컬에는 experiment 이름만 `eval/results/{timestamp}_langsmith_eval.json`에 저장합니다.
 
 ## 검증 명령
 
