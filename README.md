@@ -130,6 +130,28 @@ curl http://127.0.0.1:8000/health
 {"status":"ok"}
 ```
 
+웹 프론트엔드 개발 서버 실행:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Vite 개발 서버는 `/api` 요청을 `http://localhost:8000`의 FastAPI 서버로 프록시합니다.
+
+프론트엔드를 FastAPI에서 함께 서빙하려면 빌드 후 API 서버를 실행합니다.
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+uvicorn defapi.api:app --host 127.0.0.1 --port 8000
+```
+
+이 경우 `http://127.0.0.1:8000`에서 빌드된 웹 앱이 열리고, `/api/*` 요청은 같은 FastAPI 앱이 처리합니다.
+
 스캔 요청:
 
 ```bash

@@ -1,0 +1,13 @@
+﻿{
+  "id": "rpt_2e67dc1a-2af7-43b8-bd15-02550468721f",
+  "scanId": "scan_34642aa9-d6f0-4303-8629-e391062c1924",
+  "projectId": "prj_b06aacd8-19d8-4bbe-aa7b-64d0e0681199",
+  "userId": "usr_a4b1fc44-1bd0-4cd5-8ca3-fbcbdc0a622e",
+  "summary": {
+    "totalIssues": 0,
+    "highSeverity": 0,
+    "recommendation": "발견된 취약점이 적습니다. 기본 보안 점검을 계속 유지하세요."
+  },
+  "generatedAt": "2025-11-24T11:03:10.787Z",
+  "issues": []
+}
