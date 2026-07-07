@@ -6,9 +6,11 @@ defAPI는 로컬 코드 또는 디렉터리를 보안 스캐너로 분석하고 
 
 ```text
 사용자 코드
-  -> MCP 스캐너 분석(Semgrep, Trivy, CodeQL)
-  -> Finding 정규화
-  -> 보안 보고서 생성
+  -> Scan coordinator agent
+  -> Scanner agents(Semgrep, Trivy, CodeQL)
+  -> Report agent
+  -> Repair agent
+  -> Review agent
   -> 결과 반환
 ```
 
@@ -16,12 +18,18 @@ defAPI는 로컬 코드 또는 디렉터리를 보안 스캐너로 분석하고 
 
 ```mermaid
 flowchart TD
-    Request[Scan request] --> Scanners[Semgrep, Trivy, and CodeQL scan]
-    Scanners --> Findings[Collect normalized findings]
-    Findings --> Report[Build report]
+    Request[Scan request] --> Coordinator[Scan coordinator agent]
+    Coordinator --> Semgrep[Semgrep scanner agent]
+    Coordinator --> Trivy[Trivy scanner agent]
+    Coordinator --> CodeQL[CodeQL scanner agent]
+    Semgrep --> Report[Report agent]
+    Trivy --> Report
+    CodeQL --> Report
+    Report --> Repair[Repair agent]
+    Repair --> Review[Review agent]
 ```
 
-원본 프로젝트 파일은 변경하지 않습니다. defAPI는 현재 패치 생성, 자동 교정, sandbox 적용, 재스캔 검증을 수행하지 않습니다.
+원본 프로젝트 파일은 변경하지 않습니다. defAPI는 현재 수정 제안과 리뷰 텍스트를 생성하지만, 자동 파일 패치 적용, sandbox 적용, 재스캔 검증은 수행하지 않습니다.
 
 ## 현재 구현 상태
 
@@ -29,16 +37,17 @@ flowchart TD
 
 - FastAPI `/health`, `/scan`, `/report/{scan_id}` API
 - FastMCP 기반 MCP server tools
-- LangGraph 기반 scan -> report workflow
+- LangGraph 기반 multi-agent workflow
 - Semgrep, Trivy, CodeQL MCP wrapper
 - Scanner output을 공통 `Finding` 모델로 정규화
 - 스캐너 실행 결과와 severity count 기반 summary 생성
+- Repair/Review agent 결과와 agent step trace 반환
 - LoRA/SFT, DPO 학습 모듈 skeleton
 
 아직 제한적인 부분:
 
 - 테스트 러너 연동은 아직 없습니다.
-- fine-tuned/DPO 모델 inference는 아직 API workflow에 연결되어 있지 않습니다.
+- 자동 패치 적용과 재스캔 검증은 아직 없습니다.
 
 ## 프로젝트 구조
 
@@ -46,7 +55,8 @@ flowchart TD
 defapi/
   api.py                  # FastAPI endpoint
   models.py               # Pydantic domain/API model
-  workflow.py             # scan/report pipeline
+  agents.py               # scanner/report/repair/review agents
+  workflow.py             # LangGraph multi-agent pipeline
   reports.py              # report 생성
   mcp/
     scanners.py           # Semgrep, Trivy, CodeQL CLI wrapper/parser
@@ -196,7 +206,7 @@ python -m defapi.mcp.server
 - `list_scanners`: 사용 가능한 scanner 이름 반환
 - `scanner_health`: Semgrep, Trivy, CodeQL CLI 설치 경로 확인
 - `scan_with_scanner`: 특정 scanner 하나만 실행
-- `scan_project`: Semgrep, Trivy, CodeQL 전체 workflow 실행
+- `scan_project`: Semgrep, Trivy, CodeQL 스캔과 report/repair/review multi-agent workflow 실행
 
 ## Docker 실행
 

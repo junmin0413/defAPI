@@ -245,6 +245,18 @@ def _to_frontend_report(report: Report) -> dict:
         "status": report.status.value,
         "target": report.target,
         "summary": report.summary,
+        "review": report.review,
+        "agentSteps": [
+            {
+                "name": step.name,
+                "status": step.status,
+                "summary": step.summary,
+                "error": step.error,
+                "startedAt": step.started_at.isoformat(),
+                "finishedAt": step.finished_at.isoformat() if step.finished_at else None,
+            }
+            for step in report.agent_steps
+        ],
         "createdAt": report.created_at.isoformat(),
         "completedAt": report.completed_at.isoformat() if report.completed_at else None,
         "issues": [

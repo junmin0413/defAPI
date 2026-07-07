@@ -12,11 +12,20 @@ from defapi.models import Report
 SYSTEM_MESSAGE = (
     "You are a secure coding assistant. Analyze vulnerable code and provide safe, practical fixes."
 )
+REVIEW_SYSTEM_MESSAGE = (
+    "You are a senior application security reviewer. Review proposed fixes for correctness, "
+    "residual risk, and missing verification steps."
+)
 RESPONSE_FORMAT = """응답은 반드시 다음 네 섹션을 순서대로 포함해야 한다.
 1. 취약점 설명
 2. 안전한 수정 코드
 3. 수정 이유
 4. 추가 주의사항"""
+REVIEW_FORMAT = """응답은 반드시 다음 네 섹션을 순서대로 포함해야 한다.
+1. 패치 검토 결과
+2. 남은 위험
+3. 검증 방법
+4. 배포 전 체크리스트"""
 
 
 def _load_project_env() -> None:
@@ -78,6 +87,28 @@ class LLMClient:
                         "다음 스캔 결과의 보안 취약점을 분석하고 안전한 코드로 수정하라.\n\n"
                         f"출력 형식:\n{RESPONSE_FORMAT}\n\n"
                         f"분석 대상:\n{report.to_finetuning_input()}"
+                    ),
+                },
+            ],
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+        )
+        return response.choices[0].message.content or ""
+
+    def generate_review(self, report: Report) -> str:
+        response = self.client.chat.completions.create(
+            model=self.config.request_model,
+            messages=[
+                {"role": "system", "content": REVIEW_SYSTEM_MESSAGE},
+                {
+                    "role": "user",
+                    "content": (
+                        "작업:\n"
+                        "다음 보안 스캔 결과와 수정 제안을 검토하라. "
+                        "수정이 취약점을 실제로 완화하는지, 남은 위험과 검증 방법을 제시하라.\n\n"
+                        f"출력 형식:\n{REVIEW_FORMAT}\n\n"
+                        f"스캔 결과:\n{report.to_finetuning_input()}\n\n"
+                        f"수정 제안:\n{report.repair or '없음'}"
                     ),
                 },
             ],

@@ -106,6 +106,15 @@ class ScannerResult(BaseModel):
     error: str | None = None
 
 
+class AgentStep(BaseModel):
+    name: str
+    status: str
+    summary: str
+    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    finished_at: datetime | None = None
+    error: str | None = None
+
+
 class FineTuningSample(BaseModel):
     instruction: str
     input: str
@@ -172,8 +181,10 @@ class Report(BaseModel):
     status: ScanStatus
     created_at: datetime
     repair: str | None = None
+    review: str | None = None
     completed_at: datetime | None = None
     scanner_results: list[ScannerResult] = Field(default_factory=list)
+    agent_steps: list[AgentStep] = Field(default_factory=list)
     summary: dict[str, int] = Field(default_factory=dict)
 
     def all_findings(self) -> list[Finding]:
